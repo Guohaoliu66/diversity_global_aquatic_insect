@@ -6,7 +6,7 @@ This is a project to explore global freshwater insect diversity and the drivers 
 ## Environmental Requirements 
 
 ### Hardware Requirements
-Because of the size of the EPTO database, a standard computer with enough memory to support user-defined operations is required. We recommend a computer with the following specifications:
+Because of the size of the EPTO database (Approx. 3.2GB), a standard computer with enough memory to support user-defined operations is required. We recommend a computer with the following specifications:
 Memory: 16+ GB
 CPU: 4+ cores
 
