@@ -7,9 +7,8 @@ This is a project to explore global freshwater insect diversity and the drivers 
 This project uses the R (verson 4.3.2) for data analysis, so R and some specific R packages need to be installed. 
 
 ## Description
-All biotic and abiotic data used in this project were obtained from open databases and literature. Please prepare the necessary raw data and R packages prior to analysis, see below
+All biotic and abiotic data used in this project were obtained from open databases and literature. Please prepare the necessary raw data and R packages prior to analysis, see below:
 
-###Installation
 install.packages(c('dplyr', 'tidyverse', 'vegan', 'lubridate', 'data.table', 'BAT', 'iNEXT.3D', 'ggplot2' 'ggvenn', 'spatialreg', 'spdep'))
 
 
