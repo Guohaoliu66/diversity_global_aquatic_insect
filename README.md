@@ -30,6 +30,6 @@ We can obtain a global pattern of geographic distribution of aquatic insect dive
 By running these R codes, we can repeat almost all of the results from the study. Note, however: due to the uncontrolled standard error when using the iNEXT.3D package for diversity calculations, it is almost impossible to reproduce exactly the same results (the ratio of observed to normalized diversity), even though we set the parameter nboot = 50 for more reliable results.
 
 ###  Operation Guide
-1. Detailed runtime instructions are included in each file in r_script.  
+1. Detailed runtime instructions are included in each file in r_scripts.  
 2. Note that I used ArcMap to make Fig2 a,b,c,d, Fig3, Extended Fig2, Extended Fig3  
 3. And I used Adobe Photoshop 2020 to generate Fig.1, Fig.5. and enhanced Fig.4, Fig.6.
