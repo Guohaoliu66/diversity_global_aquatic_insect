@@ -1,0 +1,186 @@
+---
+  title: "diversity_global_aquatic_insect "
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#1.0 Import data
+```{r}
+#setwd("E:/.../input_data")
+library(dplyr) # data manipulation
+library(tidyverse)# data manipulation
+library(vegan) # ordination methods
+library(lubridate)# year, month function
+library(data.table)
+library(BAT)
+library(betapart)
+library(data.table)
+
+
+### Note: Global_EPTO_Database.csv extracted from the EPTO database: https://glowabio.org/project/epto_database/
+
+### Reading of data and initial selection
+EPTO=fread("Global_EPTO_Database.csv")
+EPTO.s<- filter(EPTO,!duplicated(EPTO$occurrence_ID))
+
+### Elimination of records that do not correspond to actual sites
+EPTO.s1=EPTO.s[which(cen_fl != "1"& EPTO.s$cap_fl !="1"  & EPTO.s$snapped !="1"),c(5,8,9,14:16)]
+
+EPTO.s1 <- EPTO.s1[!duplicated(EPTO.s1), ]
+
+### Assign unique IDs to sites with consistent latitude and longitude
+n <- nrow(EPTO.s1)
+EPTO.s1$record_num <- 1:n
+EPTO.s1$unique=EPTO.s1$longitude+EPTO.s1$latitude
+EPTO.s1$site_ID <- NA
+EPTO.s1 <- EPTO.s1 %>% mutate(site_ID = as.numeric(factor(unique)))
+
+### Connections to the HYdroBASIN database for four levels of Basin IDs
+### Description: site001-site007 were extracted from the dataframe EPTO.s1 and the coordinates were connected to the unique HYBAS_ID using Qgis software
+loc_01=read.csv("site001.csv")
+loc_02=read.csv("site002.csv")
+loc_03=read.csv("site003.csv")
+loc_04=read.csv("site004.csv")
+loc_05=read.csv("site005.csv")
+loc_06=read.csv("site006.csv")
+loc_07=read.csv("site007.csv")
+loc_all=rbind(loc_01, loc_02, loc_03,loc_04, loc_05, loc_06,loc_07)
+merged_data <- merge(EPTO.s1, loc_all, by = "record_num")
+Data.o=merged_data[,c(2:7,9,12)]
+
+### Deletion of basins with only one genus
+Data.s=Data.o %>% group_by(HYBAS_ID) %>% filter(n() >1)
+
+### Deletion of one basin have only one site
+Data.s1 <- Data.s %>%
+  group_by(HYBAS_ID) %>%
+  filter(n_distinct(site_ID) > 1) %>%
+  ungroup()
+
+### Deletion of sites with only one genus
+Data=Data.s1 %>% group_by(site_ID) %>% filter(n() >1)
+
+```
+
+#2.0 All Basin
+```{r}
+#### IDs for all basins are generated in the following steps (completed)
+#all_ID=unique(Data$HYBAS_ID)
+#all_ID=data.frame(all_ID)
+#write.csv(all_ID,file = "all_ID.csv")
+
+all_ID=read.csv("all_ID.csv",header = T)
+Basin_ID=all_ID$all_ID
+data.i <- NULL
+
+for (i in Basin_ID) {
+  tryCatch({
+    spm = Data[Data$HYBAS_ID == i, ]
+    spm$Occ = rep("1")
+    spm_n = dcast(spm, site_ID + longitude.x + latitude.x + year + month + sampling_day ~ genus)
+    spm_n[is.na(spm_n)] = 0
+    spm.o=spm_n[,-c(2:7)]
+    spm.o <- mutate_at(spm.o, vars(2:last_col()), as.numeric)
+    sums <- colSums(spm.o[, -1])
+    new_col_names <- names(spm.o)[2:ncol(spm.o)]
+    spm_all=data.frame(sums)
+    df<- rownames_to_column(spm_all, var = "new_column_name")
+    colnames(df)[2] <- as.character(i)  
+    if (is.null(data.i)) {
+      data.i <- df
+    } else {
+      data.i <- merge(data.i, df, by.x = "new_column_name", by.y = "new_column_name", all.x = TRUE, all.y = TRUE)
+    }
+  }, error = function(e) {
+    cat("Error occurred for i =", i, "\n")
+  })
+}
+
+data.i[is.na(data.i)] <- 0
+write.csv(data.i,file = "All_abu.csv")
+
+```
+
+#3.0 WSB "well-sampled basin"
+```{r}
+irregular_data=unique(Data$HYBAS_ID)
+
+data.i <- NULL
+
+for (i in irregular_data) {
+  tryCatch({
+    spm = Data[Data$HYBAS_ID == "1040015030", ]
+    spm$Occ = rep("1")
+    spm_n = dcast(spm, site_ID + longitude.x + latitude.x + year + month + sampling_day ~ genus)
+    spm_n[is.na(spm_n)] = 0
+    spm.o=spm_n[,-c(2:6)]
+    spm.o <- mutate_at(spm.o, vars(2:last_col()), as.numeric)
+      if (ncol(spm.o) >= 11) {
+  spm.o <- spm.o
+} else {
+  stop("Error:  less than 5 taxon.")
+}
+    spm.s1 <- spm.o %>%
+  select(site_ID, everything()) %>% 
+  group_by(site_ID) %>%
+  summarise(across(everything(), sum))
+    
+sum_cols<- sum(spm.s1[, 2:ncol(spm.s1)])
+
+     if (sum_cols/nrow(spm.s1) >= 2 & nrow(spm.s1) >= 10 ) {
+  spm.s1 <- spm.s1
+} else {
+  stop("Error: abundance/site less than 2 or less than 5 sites")
+}
+    ID <- data.frame(i)
+    data.i <- rbind(data.i,ID)
+  }, error = function(e) {
+    cat("Error occurred for i =", i, "\n")
+  })
+}
+
+write.csv(data.i,file="Basin_ID.csv")
+
+```
+
+#4.0 Global abundances data
+```{r}
+basin_ID=read.csv("Basin_ID.csv",header = T)
+
+Basin_ID=unique(basin_ID$i)
+
+data.i <- NULL
+
+for (i in Basin_ID) {
+  tryCatch({
+    spm = Data[Data$HYBAS_ID == i, ]
+    spm$Occ = rep("1")
+    spm_n = dcast(spm, site_ID + longitude.x + latitude.x + year + month + sampling_day ~ genus)
+    spm_n[is.na(spm_n)] = 0
+    spm.o=spm_n[,-c(2:7)]
+    spm.o <- mutate_at(spm.o, vars(2:last_col()), as.numeric)
+    sums <- colSums(spm.o[, -1])
+    new_col_names <- names(spm.o)[2:ncol(spm.o)]
+    spm_all=data.frame(sums)
+    df<- rownames_to_column(spm_all, var = "new_column_name")
+    colnames(df)[2] <- as.character(i)  
+    if (is.null(data.i)) {
+      data.i <- df
+    } else {
+      data.i <- merge(data.i, df, by.x = "new_column_name", by.y = "new_column_name", all.x = TRUE, all.y = TRUE)
+    }
+  }, error = function(e) {
+    cat("Error occurred for i =", i, "\n")
+  })
+}
+
+data.i[is.na(data.i)] <- 0
+write.csv(data.i,file = "WSB_abu.csv")
+
+```
+
