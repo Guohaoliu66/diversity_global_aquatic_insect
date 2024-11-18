@@ -31,5 +31,4 @@ By running these R codes, we can repeat almost all of the results from the study
 
 ###  Operation Guide
 1. Detailed runtime instructions are included in each file in r_scripts.  
-2. Note that I used ArcMap to make Fig.2a,b,c,d, Fig.3, Extended Fig.2, Extended Fig.3.  
-3. And I used Adobe Photoshop 2020 to generate Fig.1, Fig.5. and enhanced Fig.4, Fig.6.  
+2. Note that I used ArcMap to make Fig.2, Fig.4 ABCDEF, Extended Fig.S1, S3 and S4.  
