@@ -1,0 +1,1905 @@
+---
+  title: "Qiantang river metacommunity-Macroinvertebrates"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#1.0 Import data
+```{r}
+setwd(".../input")
+library(sf)
+library(tidyverse)
+library(tidycensus)
+library(corrr)
+library(tmap)
+library(spdep)
+library(tigris)
+library(rmapshaper)
+library(flextable)
+library(car)
+library(spatialreg)
+library(stargazer)
+library(spatialreg)
+library(spdep)
+
+### there VPA data 
+All=data
+data <- st_read("Global basin.shp")
+shp=data[which(data$HYBAS_ID %in% All$HYBAS_ID),]
+valid_shapefile <- st_make_valid(shp)
+sac_neighbors<-poly2nb(valid_shapefile, queen=T)
+
+summary(sac_neighbors)
+card(sac_neighbors)
+
+####https://gis.stackexchange.com/questions/413159/how-to-assign-a-neighbour-status-to-unlinked-polygons
+add_nb <- function(x){
+  
+  sac_neighbors <- poly2nb(x, queen = TRUE)
+  
+  count = card(sac_neighbors)
+  if(!any(count==0)){
+    return(sac_neighbors)
+  }
+  
+  ## get nearest neighbour index, use centroids:
+  nnbs = knearneigh(st_coordinates(st_centroid(x)))$nn
+  
+  no_edges_from = which(count==0)
+  for(i in no_edges_from){
+    sac_neighbors[[i]] = nnbs[i]
+  }
+  return(sac_neighbors)
+  
+}
+
+new_queen_nb <- add_nb(valid_shapefile)
+
+
+data=data.frame(All[,c(1,3,5,7,9,11,13,14:33)])
+colnames(data)[1] <- "HYBAS_ID"
+data[,8:27]<-scale(data[,8:27])
+colnames(data)
+
+```
+
+# Obs_TDq0  SAR model
+```{r}
+
+hl<-combn(1:20,20)
+rl<- colnames(data)[8:27]
+xl0<-as.formula(paste("Obs_TDq0 ~",paste(rl[hl[,1]],collapse = " + ")))
+
+
+least_aic_Obs_TDq0<-
+{
+  data=data
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  
+  ## sem model
+  mod.sem <-spatialreg::errorsarlm(xl0, data=data,
+                                   listw=W_cont_el_mat2,zero.policy=T)  
+  sem<-summary(mod.sem,Nagelkerke=T)
+  sem.coef<-round(sem$Coef,4);sem.coef
+  sem.r2<-sem$NK;sem.r2
+  sem.aic<-AIC(mod.sem);sem.aic
+  hl0<-combn(1:20,19)
+  rl0<-c("Nat_dis","LSR","IE_lmx","Riv_a","GTD",
+         "Bio1","Bio2","Bio8","Bio12","Bio15",
+         "Elev_range","Str_gra","For_ext","Cro_ext","Area",
+         "GDP","HDI","HFP","HMG","Sam_eff")
+  
+  comb<-NULL
+  for(i in 1:20)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl0[hl0[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x,data=data,                       listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=1,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl1<-combn(1:19,18)
+  rl1<-rl0[hl0[,which(comb$aic==min(comb$aic))]]
+  for(i in 1:19)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl1[hl1[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=2,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl2<-combn(1:18,17)
+  rl2<-rl1[hl1[,which(comb$aic==min(comb$aic[-(1:20)]))-20]]
+  for(i in 1:18)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl2[hl2[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=3,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl3<-combn(1:17,16)
+  rl3<-rl2[hl2[,which(comb$aic==min(comb$aic[-(1:39)]))-39]]
+  for(i in 1:17)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl3[hl3[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=4,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl4<-combn(1:16,15)
+  rl4<-rl3[hl3[,which(comb$aic==min(comb$aic[-(1:57)]))-57]]
+  for(i in 1:16)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl4[hl4[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=5,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl5<-combn(1:15,14)
+  rl5<-rl4[hl4[,which(comb$aic==min(comb$aic[-(1:74)]))-74]]
+  for(i in 1:15)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl5[hl5[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=6,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl6<-combn(1:14,13)
+  rl6<-rl5[hl5[,which(comb$aic==min(comb$aic[-(1:90)]))-90]]
+  for(i in 1:14)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl6[hl6[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=7,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+    hl7<-combn(1:13,12)
+  rl7<-rl6[hl6[,which(comb$aic==min(comb$aic[-(1:105)]))-105]]
+  for(i in 1:13)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl7[hl7[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=8,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+ 
+    hl8<-combn(1:12,11)
+  rl8<-rl7[hl7[,which(comb$aic==min(comb$aic[-(1:119)]))-119]]
+  for(i in 1:12)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl8[hl8[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=9,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+   hl9<-combn(1:11,10)
+  rl9<-rl8[hl8[,which(comb$aic==min(comb$aic[-(1:132)]))-132]]
+  for(i in 1:11)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl9[hl9[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=10,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl10<-combn(1:10,9)
+  rl10<-rl9[hl9[,which(comb$aic==min(comb$aic[-(1:144)]))-144]]
+  for(i in 1:10)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl10[hl10[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=11,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl11<-combn(1:9,8)
+  rl11<-rl10[hl10[,which(comb$aic==min(comb$aic[-(1:155)]))-155]]
+  for(i in 1:9)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl11[hl11[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=12,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl12<-combn(1:8,7)
+  rl12<-rl11[hl11[,which(comb$aic==min(comb$aic[-(1:165)]))-165]]
+  for(i in 1:8)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl12[hl12[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=13,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl13<-combn(1:7,6)
+  rl13<-rl12[hl12[,which(comb$aic==min(comb$aic[-(1:174)]))-174]]
+  for(i in 1:7)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl13[hl13[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=14,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+   hl14<-combn(1:6,5)
+  rl14<-rl13[hl13[,which(comb$aic==min(comb$aic[-(1:182)]))-182]]
+  for(i in 1:6)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl14[hl14[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=15,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl15<-combn(1:5,4)
+  rl15<-rl14[hl14[,which(comb$aic==min(comb$aic[-(1:189)]))-189]]
+  for(i in 1:5)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl15[hl15[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=16,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+    hl16<-combn(1:4,3)
+  rl16<-rl15[hl15[,which(comb$aic==min(comb$aic[-(1:195)]))-195]]
+  for(i in 1:4)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl16[hl16[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=17,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+      hl17<-combn(1:3,2)
+  rl17<-rl16[hl16[,which(comb$aic==min(comb$aic[-(1:200)]))-200]]
+  for(i in 1:3)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl17[hl17[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=18,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl18<-combn(1:2,1)
+  rl18<-rl17[hl17[,which(comb$aic==min(comb$aic[-(1:204)]))-204]]
+  for(i in 1:2)
+  {
+    x<-as.formula(paste("Obs_TDq0 ~",paste(rl18[hl18[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=19,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl19<-combn(1:1,1)
+  rl19<-rl18[hl18[,which(comb$aic==min(comb$aic[-(1:207)]))-207]]
+  
+  list(comb,list(rl0,rl1,rl2,rl3,rl4,rl5,rl6,rl7,rl8,rl9,rl10,rl11,rl12,rl13,rl14,rl15,rl16,rl17,rl18,rl19))
+}
+##### end of the function 
+
+m2<-least_aic_Obs_TDq0[[2]][least_aic_Obs_TDq0[[1]][which(least_aic_Obs_TDq0[[1]]$aic==min(least_aic_Obs_TDq0[[1]]$aic)),1]+1] 
+
+```
+
+# Obs_TDq0 optimal SAR model and Moran's I test
+```{r}
+
+  my <- "Obs_TDq0"
+  comb_SEM<-list(m2)
+  names(comb_SEM)<-my
+  data=data
+  x<-as.formula(paste("Obs_TDq0 ~",paste(unlist(comb_SEM[[my]]),collapse = " + ")))
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  ## sem model 
+  mod.null<-spatialreg::errorsarlm(Obs_TDq0~1, data=data,listw=W_cont_el_mat2,Durbin = F, zero.policy=T) # null model
+  null.aic<-AIC(mod.null)
+  mod.ini<-spatialreg::errorsarlm(xl0, data=data, listw=W_cont_el_mat2,zero.policy=T) # initial model
+  ini.aic<-AIC(mod.ini)
+  mod.opt <-spatialreg::errorsarlm(x, data=data, listw=W_cont_el_mat2,zero.policy=T) # optimal model 
+  opt<-summary(mod.opt,Nagelkerke=T)
+  opt.coef<-round(opt$Coef,4)
+  opt.r2<-opt$NK;opt.r2
+  opt.aic<-AIC(mod.opt)
+  res <- mod.opt$residuals
+  names(res)<-data$HYBAS_ID
+  I<-moran.test(res,listw=W_cont_el_mat2,zero.policy=T);I #### spChk check name
+ # r2moranI[i,]<-c(round(opt.r2,3),round(I$estimate[1],4),round(I$p.value,3))
+  coef<-opt.coef[-1,] 
+  print(my[])
+  print(paste("null.aic = ",round(null.aic,4)))
+  print(paste("ini.aic = ",round(ini.aic,4)))
+  print(paste("opt.aic = ",round(opt.aic,4)))
+  index_Obs_TDq0=data.frame(my,null.aic,ini.aic,opt.aic,opt.coef,opt.r2,I$statistic,I$p.value)
+
+
+write.csv(index_Obs_TDq0,file = "st_Obs_TDq0.csv")
+```
+
+# Obs_TDq1  SAR model
+```{r}
+
+hl<-combn(1:20,20)
+rl<- colnames(data)[8:27]
+xl0<-as.formula(paste("Obs_TDq1 ~",paste(rl[hl[,1]],collapse = " + ")))
+
+
+least_aic_Obs_TDq1<-
+{
+  data=data
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  
+  ## sem model
+  mod.sem <-spatialreg::errorsarlm(xl0, data=data,
+                                   listw=W_cont_el_mat2,zero.policy=T)  
+  sem<-summary(mod.sem,Nagelkerke=T)
+  sem.coef<-round(sem$Coef,4);sem.coef
+  sem.r2<-sem$NK;sem.r2
+  sem.aic<-AIC(mod.sem);sem.aic
+  hl0<-combn(1:20,19)
+  rl0<-c("Nat_dis","LSR","IE_lmx","Riv_a","GTD",
+         "Bio1","Bio2","Bio8","Bio12","Bio15",
+         "Elev_range","Str_gra","For_ext","Cro_ext","Area",
+         "GDP","HDI","HFP","HMG","Sam_eff")
+  
+  comb<-NULL
+  for(i in 1:20)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl0[hl0[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x,data=data,                       listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=1,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl1<-combn(1:19,18)
+  rl1<-rl0[hl0[,which(comb$aic==min(comb$aic))]]
+  for(i in 1:19)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl1[hl1[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=2,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl2<-combn(1:18,17)
+  rl2<-rl1[hl1[,which(comb$aic==min(comb$aic[-(1:20)]))-20]]
+  for(i in 1:18)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl2[hl2[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=3,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl3<-combn(1:17,16)
+  rl3<-rl2[hl2[,which(comb$aic==min(comb$aic[-(1:39)]))-39]]
+  for(i in 1:17)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl3[hl3[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=4,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl4<-combn(1:16,15)
+  rl4<-rl3[hl3[,which(comb$aic==min(comb$aic[-(1:57)]))-57]]
+  for(i in 1:16)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl4[hl4[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=5,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl5<-combn(1:15,14)
+  rl5<-rl4[hl4[,which(comb$aic==min(comb$aic[-(1:74)]))-74]]
+  for(i in 1:15)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl5[hl5[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=6,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl6<-combn(1:14,13)
+  rl6<-rl5[hl5[,which(comb$aic==min(comb$aic[-(1:90)]))-90]]
+  for(i in 1:14)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl6[hl6[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=7,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+    hl7<-combn(1:13,12)
+  rl7<-rl6[hl6[,which(comb$aic==min(comb$aic[-(1:105)]))-105]]
+  for(i in 1:13)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl7[hl7[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=8,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+ 
+    hl8<-combn(1:12,11)
+  rl8<-rl7[hl7[,which(comb$aic==min(comb$aic[-(1:119)]))-119]]
+  for(i in 1:12)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl8[hl8[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=9,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+   hl9<-combn(1:11,10)
+  rl9<-rl8[hl8[,which(comb$aic==min(comb$aic[-(1:132)]))-132]]
+  for(i in 1:11)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl9[hl9[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=10,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl10<-combn(1:10,9)
+  rl10<-rl9[hl9[,which(comb$aic==min(comb$aic[-(1:144)]))-144]]
+  for(i in 1:10)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl10[hl10[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=11,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl11<-combn(1:9,8)
+  rl11<-rl10[hl10[,which(comb$aic==min(comb$aic[-(1:155)]))-155]]
+  for(i in 1:9)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl11[hl11[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=12,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl12<-combn(1:8,7)
+  rl12<-rl11[hl11[,which(comb$aic==min(comb$aic[-(1:165)]))-165]]
+  for(i in 1:8)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl12[hl12[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=13,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl13<-combn(1:7,6)
+  rl13<-rl12[hl12[,which(comb$aic==min(comb$aic[-(1:174)]))-174]]
+  for(i in 1:7)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl13[hl13[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=14,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+   hl14<-combn(1:6,5)
+  rl14<-rl13[hl13[,which(comb$aic==min(comb$aic[-(1:182)]))-182]]
+  for(i in 1:6)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl14[hl14[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=15,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl15<-combn(1:5,4)
+  rl15<-rl14[hl14[,which(comb$aic==min(comb$aic[-(1:189)]))-189]]
+  for(i in 1:5)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl15[hl15[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=16,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+    hl16<-combn(1:4,3)
+  rl16<-rl15[hl15[,which(comb$aic==min(comb$aic[-(1:195)]))-195]]
+  for(i in 1:4)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl16[hl16[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=17,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+      hl17<-combn(1:3,2)
+  rl17<-rl16[hl16[,which(comb$aic==min(comb$aic[-(1:200)]))-200]]
+  for(i in 1:3)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl17[hl17[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=18,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl18<-combn(1:2,1)
+  rl18<-rl17[hl17[,which(comb$aic==min(comb$aic[-(1:204)]))-204]]
+  for(i in 1:2)
+  {
+    x<-as.formula(paste("Obs_TDq1 ~",paste(rl18[hl18[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=19,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl19<-combn(1:1,1)
+  rl19<-rl18[hl18[,which(comb$aic==min(comb$aic[-(1:207)]))-207]]
+  
+  list(comb,list(rl0,rl1,rl2,rl3,rl4,rl5,rl6,rl7,rl8,rl9,rl10,rl11,rl12,rl13,rl14,rl15,rl16,rl17,rl18,rl19))
+}
+##### end of the function 
+
+m2<-least_aic_Obs_TDq1[[2]][least_aic_Obs_TDq1[[1]][which(least_aic_Obs_TDq1[[1]]$aic==min(least_aic_Obs_TDq1[[1]]$aic)),1]+1] 
+
+```
+
+# Obs_TDq1 optimal SAR model and Moran's I test
+```{r}
+
+  my <- "Obs_TDq1"
+  comb_SEM<-list(m2)
+  names(comb_SEM)<-my
+  data=data
+  x<-as.formula(paste("Obs_TDq1 ~",paste(unlist(comb_SEM[[my]]),collapse = " + ")))
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  ## sem model 
+  mod.null<-spatialreg::errorsarlm(Obs_TDq1~1, data=data,listw=W_cont_el_mat2,Durbin = F, zero.policy=T) # null model
+  null.aic<-AIC(mod.null)
+  mod.ini<-spatialreg::errorsarlm(xl0, data=data, listw=W_cont_el_mat2,zero.policy=T) # initial model
+  ini.aic<-AIC(mod.ini)
+  mod.opt <-spatialreg::errorsarlm(x, data=data, listw=W_cont_el_mat2,zero.policy=T) # optimal model 
+  opt<-summary(mod.opt,Nagelkerke=T)
+  opt.coef<-round(opt$Coef,4)
+  opt.r2<-opt$NK;opt.r2
+  opt.aic<-AIC(mod.opt)
+  res <- mod.opt$residuals
+  names(res)<-data$HYBAS_ID
+  I<-moran.test(res,listw=W_cont_el_mat2,zero.policy=T);I #### spChk check name
+ # r2moranI[i,]<-c(round(opt.r2,3),round(I$estimate[1],4),round(I$p.value,3))
+  coef<-opt.coef[-1,] 
+  print(my[])
+  print(paste("null.aic = ",round(null.aic,4)))
+  print(paste("ini.aic = ",round(ini.aic,4)))
+  print(paste("opt.aic = ",round(opt.aic,4)))
+  index_Obs_TDq1=data.frame(my,null.aic,ini.aic,opt.aic,opt.coef,opt.r2,I$statistic,I$p.value)
+
+
+write.csv(index_Obs_TDq1,file = "st_Obs_TDq1.csv")
+```
+
+# Obs_TDq2  SAR model
+```{r}
+
+hl<-combn(1:20,20)
+rl<- colnames(data)[8:27]
+xl0<-as.formula(paste("Obs_TDq2 ~",paste(rl[hl[,1]],collapse = " + ")))
+
+
+least_aic_Obs_TDq2<-
+{
+  data=data
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  
+  ## sem model
+  mod.sem <-spatialreg::errorsarlm(xl0, data=data,
+                                   listw=W_cont_el_mat2,zero.policy=T)  
+  sem<-summary(mod.sem,Nagelkerke=T)
+  sem.coef<-round(sem$Coef,4);sem.coef
+  sem.r2<-sem$NK;sem.r2
+  sem.aic<-AIC(mod.sem);sem.aic
+  hl0<-combn(1:20,19)
+  rl0<-c("Nat_dis","LSR","IE_lmx","Riv_a","GTD",
+         "Bio1","Bio2","Bio8","Bio12","Bio15",
+         "Elev_range","Str_gra","For_ext","Cro_ext","Area",
+         "GDP","HDI","HFP","HMG","Sam_eff")
+  
+  comb<-NULL
+  for(i in 1:20)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl0[hl0[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x,data=data,                       listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=1,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl1<-combn(1:19,18)
+  rl1<-rl0[hl0[,which(comb$aic==min(comb$aic))]]
+  for(i in 1:19)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl1[hl1[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=2,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl2<-combn(1:18,17)
+  rl2<-rl1[hl1[,which(comb$aic==min(comb$aic[-(1:20)]))-20]]
+  for(i in 1:18)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl2[hl2[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=3,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl3<-combn(1:17,16)
+  rl3<-rl2[hl2[,which(comb$aic==min(comb$aic[-(1:39)]))-39]]
+  for(i in 1:17)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl3[hl3[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=4,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl4<-combn(1:16,15)
+  rl4<-rl3[hl3[,which(comb$aic==min(comb$aic[-(1:57)]))-57]]
+  for(i in 1:16)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl4[hl4[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=5,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl5<-combn(1:15,14)
+  rl5<-rl4[hl4[,which(comb$aic==min(comb$aic[-(1:74)]))-74]]
+  for(i in 1:15)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl5[hl5[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=6,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl6<-combn(1:14,13)
+  rl6<-rl5[hl5[,which(comb$aic==min(comb$aic[-(1:90)]))-90]]
+  for(i in 1:14)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl6[hl6[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=7,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+    hl7<-combn(1:13,12)
+  rl7<-rl6[hl6[,which(comb$aic==min(comb$aic[-(1:105)]))-105]]
+  for(i in 1:13)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl7[hl7[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=8,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+ 
+    hl8<-combn(1:12,11)
+  rl8<-rl7[hl7[,which(comb$aic==min(comb$aic[-(1:119)]))-119]]
+  for(i in 1:12)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl8[hl8[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=9,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+   hl9<-combn(1:11,10)
+  rl9<-rl8[hl8[,which(comb$aic==min(comb$aic[-(1:132)]))-132]]
+  for(i in 1:11)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl9[hl9[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=10,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl10<-combn(1:10,9)
+  rl10<-rl9[hl9[,which(comb$aic==min(comb$aic[-(1:144)]))-144]]
+  for(i in 1:10)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl10[hl10[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=11,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl11<-combn(1:9,8)
+  rl11<-rl10[hl10[,which(comb$aic==min(comb$aic[-(1:155)]))-155]]
+  for(i in 1:9)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl11[hl11[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=12,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl12<-combn(1:8,7)
+  rl12<-rl11[hl11[,which(comb$aic==min(comb$aic[-(1:165)]))-165]]
+  for(i in 1:8)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl12[hl12[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=13,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl13<-combn(1:7,6)
+  rl13<-rl12[hl12[,which(comb$aic==min(comb$aic[-(1:174)]))-174]]
+  for(i in 1:7)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl13[hl13[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=14,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+   hl14<-combn(1:6,5)
+  rl14<-rl13[hl13[,which(comb$aic==min(comb$aic[-(1:182)]))-182]]
+  for(i in 1:6)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl14[hl14[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=15,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl15<-combn(1:5,4)
+  rl15<-rl14[hl14[,which(comb$aic==min(comb$aic[-(1:189)]))-189]]
+  for(i in 1:5)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl15[hl15[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=16,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+    hl16<-combn(1:4,3)
+  rl16<-rl15[hl15[,which(comb$aic==min(comb$aic[-(1:195)]))-195]]
+  for(i in 1:4)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl16[hl16[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=17,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+      hl17<-combn(1:3,2)
+  rl17<-rl16[hl16[,which(comb$aic==min(comb$aic[-(1:200)]))-200]]
+  for(i in 1:3)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl17[hl17[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=18,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl18<-combn(1:2,1)
+  rl18<-rl17[hl17[,which(comb$aic==min(comb$aic[-(1:204)]))-204]]
+  for(i in 1:2)
+  {
+    x<-as.formula(paste("Obs_TDq2 ~",paste(rl18[hl18[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=19,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl19<-combn(1:1,1)
+  rl19<-rl18[hl18[,which(comb$aic==min(comb$aic[-(1:207)]))-207]]
+  
+  list(comb,list(rl0,rl1,rl2,rl3,rl4,rl5,rl6,rl7,rl8,rl9,rl10,rl11,rl12,rl13,rl14,rl15,rl16,rl17,rl18,rl19))
+}
+##### end of the function 
+
+m2<-least_aic_Obs_TDq2[[2]][least_aic_Obs_TDq2[[1]][which(least_aic_Obs_TDq2[[1]]$aic==min(least_aic_Obs_TDq2[[1]]$aic)),1]+1] 
+
+```
+
+# Obs_TDq2 optimal SAR model and Moran's I test
+```{r}
+
+  my <- "Obs_TDq2"
+  comb_SEM<-list(m2)
+  names(comb_SEM)<-my
+  data=data
+  x<-as.formula(paste("Obs_TDq2 ~",paste(unlist(comb_SEM[[my]]),collapse = " + ")))
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  ## sem model 
+  mod.null<-spatialreg::errorsarlm(Obs_TDq2~1, data=data,listw=W_cont_el_mat2,Durbin = F, zero.policy=T) # null model
+  null.aic<-AIC(mod.null)
+  mod.ini<-spatialreg::errorsarlm(xl0, data=data, listw=W_cont_el_mat2,zero.policy=T) # initial model
+  ini.aic<-AIC(mod.ini)
+  mod.opt <-spatialreg::errorsarlm(x, data=data, listw=W_cont_el_mat2,zero.policy=T) # optimal model 
+  opt<-summary(mod.opt,Nagelkerke=T)
+  opt.coef<-round(opt$Coef,4)
+  opt.r2<-opt$NK;opt.r2
+  opt.aic<-AIC(mod.opt)
+  res <- mod.opt$residuals
+  names(res)<-data$HYBAS_ID
+  I<-moran.test(res,listw=W_cont_el_mat2,zero.policy=T);I #### spChk check name
+ # r2moranI[i,]<-c(round(opt.r2,3),round(I$estimate[1],4),round(I$p.value,3))
+  coef<-opt.coef[-1,] 
+  print(my[])
+  print(paste("null.aic = ",round(null.aic,4)))
+  print(paste("ini.aic = ",round(ini.aic,4)))
+  print(paste("opt.aic = ",round(opt.aic,4)))
+  index_Obs_TDq2=data.frame(my,null.aic,ini.aic,opt.aic,opt.coef,opt.r2,I$statistic,I$p.value)
+
+
+write.csv(index_Obs_TDq2,file = "st_Obs_TDq2.csv")
+```
+
+# Obs_FDq0  SAR model
+```{r}
+
+hl<-combn(1:20,20)
+rl<- colnames(data)[8:27]
+xl0<-as.formula(paste("Obs_FDq0 ~",paste(rl[hl[,1]],collapse = " + ")))
+
+
+least_aic_Obs_FDq0<-
+{
+  data=data
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  
+  ## sem model
+  mod.sem <-spatialreg::errorsarlm(xl0, data=data,
+                                   listw=W_cont_el_mat2,zero.policy=T)  
+  sem<-summary(mod.sem,Nagelkerke=T)
+  sem.coef<-round(sem$Coef,4);sem.coef
+  sem.r2<-sem$NK;sem.r2
+  sem.aic<-AIC(mod.sem);sem.aic
+  hl0<-combn(1:20,19)
+  rl0<-c("Nat_dis","LSR","IE_lmx","Riv_a","GTD",
+         "Bio1","Bio2","Bio8","Bio12","Bio15",
+         "Elev_range","Str_gra","For_ext","Cro_ext","Area",
+         "GDP","HDI","HFP","HMG","Sam_eff")
+  
+  comb<-NULL
+  for(i in 1:20)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl0[hl0[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x,data=data,                       listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=1,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl1<-combn(1:19,18)
+  rl1<-rl0[hl0[,which(comb$aic==min(comb$aic))]]
+  for(i in 1:19)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl1[hl1[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=2,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl2<-combn(1:18,17)
+  rl2<-rl1[hl1[,which(comb$aic==min(comb$aic[-(1:20)]))-20]]
+  for(i in 1:18)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl2[hl2[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=3,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl3<-combn(1:17,16)
+  rl3<-rl2[hl2[,which(comb$aic==min(comb$aic[-(1:39)]))-39]]
+  for(i in 1:17)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl3[hl3[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=4,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl4<-combn(1:16,15)
+  rl4<-rl3[hl3[,which(comb$aic==min(comb$aic[-(1:57)]))-57]]
+  for(i in 1:16)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl4[hl4[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=5,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl5<-combn(1:15,14)
+  rl5<-rl4[hl4[,which(comb$aic==min(comb$aic[-(1:74)]))-74]]
+  for(i in 1:15)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl5[hl5[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=6,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl6<-combn(1:14,13)
+  rl6<-rl5[hl5[,which(comb$aic==min(comb$aic[-(1:90)]))-90]]
+  for(i in 1:14)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl6[hl6[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=7,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+    hl7<-combn(1:13,12)
+  rl7<-rl6[hl6[,which(comb$aic==min(comb$aic[-(1:105)]))-105]]
+  for(i in 1:13)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl7[hl7[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=8,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+ 
+    hl8<-combn(1:12,11)
+  rl8<-rl7[hl7[,which(comb$aic==min(comb$aic[-(1:119)]))-119]]
+  for(i in 1:12)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl8[hl8[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=9,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+   hl9<-combn(1:11,10)
+  rl9<-rl8[hl8[,which(comb$aic==min(comb$aic[-(1:132)]))-132]]
+  for(i in 1:11)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl9[hl9[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=10,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl10<-combn(1:10,9)
+  rl10<-rl9[hl9[,which(comb$aic==min(comb$aic[-(1:144)]))-144]]
+  for(i in 1:10)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl10[hl10[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=11,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl11<-combn(1:9,8)
+  rl11<-rl10[hl10[,which(comb$aic==min(comb$aic[-(1:155)]))-155]]
+  for(i in 1:9)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl11[hl11[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=12,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl12<-combn(1:8,7)
+  rl12<-rl11[hl11[,which(comb$aic==min(comb$aic[-(1:165)]))-165]]
+  for(i in 1:8)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl12[hl12[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=13,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl13<-combn(1:7,6)
+  rl13<-rl12[hl12[,which(comb$aic==min(comb$aic[-(1:174)]))-174]]
+  for(i in 1:7)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl13[hl13[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=14,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+   hl14<-combn(1:6,5)
+  rl14<-rl13[hl13[,which(comb$aic==min(comb$aic[-(1:182)]))-182]]
+  for(i in 1:6)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl14[hl14[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=15,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl15<-combn(1:5,4)
+  rl15<-rl14[hl14[,which(comb$aic==min(comb$aic[-(1:189)]))-189]]
+  for(i in 1:5)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl15[hl15[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=16,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+    hl16<-combn(1:4,3)
+  rl16<-rl15[hl15[,which(comb$aic==min(comb$aic[-(1:195)]))-195]]
+  for(i in 1:4)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl16[hl16[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=17,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+      hl17<-combn(1:3,2)
+  rl17<-rl16[hl16[,which(comb$aic==min(comb$aic[-(1:200)]))-200]]
+  for(i in 1:3)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl17[hl17[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=18,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl18<-combn(1:2,1)
+  rl18<-rl17[hl17[,which(comb$aic==min(comb$aic[-(1:204)]))-204]]
+  for(i in 1:2)
+  {
+    x<-as.formula(paste("Obs_FDq0 ~",paste(rl18[hl18[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=19,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl19<-combn(1:1,1)
+  rl19<-rl18[hl18[,which(comb$aic==min(comb$aic[-(1:207)]))-207]]
+  
+  list(comb,list(rl0,rl1,rl2,rl3,rl4,rl5,rl6,rl7,rl8,rl9,rl10,rl11,rl12,rl13,rl14,rl15,rl16,rl17,rl18,rl19))
+}
+##### end of the function 
+
+m2<-least_aic_Obs_FDq0[[2]][least_aic_Obs_FDq0[[1]][which(least_aic_Obs_FDq0[[1]]$aic==min(least_aic_Obs_FDq0[[1]]$aic)),1]+1] 
+
+```
+
+# Obs_FDq0 optimal SAR model and Moran's I test
+```{r}
+
+  my <- "Obs_FDq0"
+  comb_SEM<-list(m2)
+  names(comb_SEM)<-my
+  data=data
+  x<-as.formula(paste("Obs_FDq0 ~",paste(unlist(comb_SEM[[my]]),collapse = " + ")))
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  ## sem model 
+  mod.null<-spatialreg::errorsarlm(Obs_FDq0~1, data=data,listw=W_cont_el_mat2,Durbin = F, zero.policy=T) # null model
+  null.aic<-AIC(mod.null)
+  mod.ini<-spatialreg::errorsarlm(xl0, data=data, listw=W_cont_el_mat2,zero.policy=T) # initial model
+  ini.aic<-AIC(mod.ini)
+  mod.opt <-spatialreg::errorsarlm(x, data=data, listw=W_cont_el_mat2,zero.policy=T) # optimal model 
+  opt<-summary(mod.opt,Nagelkerke=T)
+  opt.coef<-round(opt$Coef,4)
+  opt.r2<-opt$NK;opt.r2
+  opt.aic<-AIC(mod.opt)
+  res <- mod.opt$residuals
+  names(res)<-data$HYBAS_ID
+  I<-moran.test(res,listw=W_cont_el_mat2,zero.policy=T);I #### spChk check name
+ # r2moranI[i,]<-c(round(opt.r2,3),round(I$estimate[1],4),round(I$p.value,3))
+  coef<-opt.coef[-1,] 
+  print(my[])
+  print(paste("null.aic = ",round(null.aic,4)))
+  print(paste("ini.aic = ",round(ini.aic,4)))
+  print(paste("opt.aic = ",round(opt.aic,4)))
+  index_Obs_FDq0=data.frame(my,null.aic,ini.aic,opt.aic,opt.coef,opt.r2,I$statistic,I$p.value)
+
+
+write.csv(index_Obs_FDq0,file = "st_Obs_FDq0.csv")
+```
+
+# Obs_FDq1  SAR model
+```{r}
+
+hl<-combn(1:20,20)
+rl<- colnames(data)[8:27]
+xl0<-as.formula(paste("Obs_FDq1 ~",paste(rl[hl[,1]],collapse = " + ")))
+
+
+least_aic_Obs_FDq1<-
+{
+  data=data
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  
+  ## sem model
+  mod.sem <-spatialreg::errorsarlm(xl0, data=data,
+                                   listw=W_cont_el_mat2,zero.policy=T)  
+  sem<-summary(mod.sem,Nagelkerke=T)
+  sem.coef<-round(sem$Coef,4);sem.coef
+  sem.r2<-sem$NK;sem.r2
+  sem.aic<-AIC(mod.sem);sem.aic
+  hl0<-combn(1:20,19)
+  rl0<-c("Nat_dis","LSR","IE_lmx","Riv_a","GTD",
+         "Bio1","Bio2","Bio8","Bio12","Bio15",
+         "Elev_range","Str_gra","For_ext","Cro_ext","Area",
+         "GDP","HDI","HFP","HMG","Sam_eff")
+  
+  comb<-NULL
+  for(i in 1:20)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl0[hl0[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x,data=data,                       listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=1,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl1<-combn(1:19,18)
+  rl1<-rl0[hl0[,which(comb$aic==min(comb$aic))]]
+  for(i in 1:19)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl1[hl1[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=2,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl2<-combn(1:18,17)
+  rl2<-rl1[hl1[,which(comb$aic==min(comb$aic[-(1:20)]))-20]]
+  for(i in 1:18)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl2[hl2[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=3,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl3<-combn(1:17,16)
+  rl3<-rl2[hl2[,which(comb$aic==min(comb$aic[-(1:39)]))-39]]
+  for(i in 1:17)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl3[hl3[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=4,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl4<-combn(1:16,15)
+  rl4<-rl3[hl3[,which(comb$aic==min(comb$aic[-(1:57)]))-57]]
+  for(i in 1:16)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl4[hl4[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=5,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl5<-combn(1:15,14)
+  rl5<-rl4[hl4[,which(comb$aic==min(comb$aic[-(1:74)]))-74]]
+  for(i in 1:15)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl5[hl5[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=6,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl6<-combn(1:14,13)
+  rl6<-rl5[hl5[,which(comb$aic==min(comb$aic[-(1:90)]))-90]]
+  for(i in 1:14)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl6[hl6[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=7,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+    hl7<-combn(1:13,12)
+  rl7<-rl6[hl6[,which(comb$aic==min(comb$aic[-(1:105)]))-105]]
+  for(i in 1:13)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl7[hl7[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=8,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+ 
+    hl8<-combn(1:12,11)
+  rl8<-rl7[hl7[,which(comb$aic==min(comb$aic[-(1:119)]))-119]]
+  for(i in 1:12)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl8[hl8[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=9,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+   hl9<-combn(1:11,10)
+  rl9<-rl8[hl8[,which(comb$aic==min(comb$aic[-(1:132)]))-132]]
+  for(i in 1:11)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl9[hl9[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=10,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl10<-combn(1:10,9)
+  rl10<-rl9[hl9[,which(comb$aic==min(comb$aic[-(1:144)]))-144]]
+  for(i in 1:10)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl10[hl10[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=11,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl11<-combn(1:9,8)
+  rl11<-rl10[hl10[,which(comb$aic==min(comb$aic[-(1:155)]))-155]]
+  for(i in 1:9)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl11[hl11[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=12,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl12<-combn(1:8,7)
+  rl12<-rl11[hl11[,which(comb$aic==min(comb$aic[-(1:165)]))-165]]
+  for(i in 1:8)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl12[hl12[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=13,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl13<-combn(1:7,6)
+  rl13<-rl12[hl12[,which(comb$aic==min(comb$aic[-(1:174)]))-174]]
+  for(i in 1:7)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl13[hl13[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=14,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+   hl14<-combn(1:6,5)
+  rl14<-rl13[hl13[,which(comb$aic==min(comb$aic[-(1:182)]))-182]]
+  for(i in 1:6)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl14[hl14[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=15,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl15<-combn(1:5,4)
+  rl15<-rl14[hl14[,which(comb$aic==min(comb$aic[-(1:189)]))-189]]
+  for(i in 1:5)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl15[hl15[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=16,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+    hl16<-combn(1:4,3)
+  rl16<-rl15[hl15[,which(comb$aic==min(comb$aic[-(1:195)]))-195]]
+  for(i in 1:4)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl16[hl16[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=17,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+      hl17<-combn(1:3,2)
+  rl17<-rl16[hl16[,which(comb$aic==min(comb$aic[-(1:200)]))-200]]
+  for(i in 1:3)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl17[hl17[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=18,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl18<-combn(1:2,1)
+  rl18<-rl17[hl17[,which(comb$aic==min(comb$aic[-(1:204)]))-204]]
+  for(i in 1:2)
+  {
+    x<-as.formula(paste("Obs_FDq1 ~",paste(rl18[hl18[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=19,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl19<-combn(1:1,1)
+  rl19<-rl18[hl18[,which(comb$aic==min(comb$aic[-(1:207)]))-207]]
+  
+  list(comb,list(rl0,rl1,rl2,rl3,rl4,rl5,rl6,rl7,rl8,rl9,rl10,rl11,rl12,rl13,rl14,rl15,rl16,rl17,rl18,rl19))
+}
+##### end of the function 
+
+m2<-least_aic_Obs_FDq1[[2]][least_aic_Obs_FDq1[[1]][which(least_aic_Obs_FDq1[[1]]$aic==min(least_aic_Obs_FDq1[[1]]$aic)),1]+1] 
+
+```
+
+# Obs_FDq1 optimal SAR model and Moran's I test
+```{r}
+
+  my <- "Obs_FDq1"
+  comb_SEM<-list(m2)
+  names(comb_SEM)<-my
+  data=data
+  x<-as.formula(paste("Obs_FDq1 ~",paste(unlist(comb_SEM[[my]]),collapse = " + ")))
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  ## sem model 
+  mod.null<-spatialreg::errorsarlm(Obs_FDq1~1, data=data,listw=W_cont_el_mat2,Durbin = F, zero.policy=T) # null model
+  null.aic<-AIC(mod.null)
+  mod.ini<-spatialreg::errorsarlm(xl0, data=data, listw=W_cont_el_mat2,zero.policy=T) # initial model
+  ini.aic<-AIC(mod.ini)
+  mod.opt <-spatialreg::errorsarlm(x, data=data, listw=W_cont_el_mat2,zero.policy=T) # optimal model 
+  opt<-summary(mod.opt,Nagelkerke=T)
+  opt.coef<-round(opt$Coef,4)
+  opt.r2<-opt$NK;opt.r2
+  opt.aic<-AIC(mod.opt)
+  res <- mod.opt$residuals
+  names(res)<-data$HYBAS_ID
+  I<-moran.test(res,listw=W_cont_el_mat2,zero.policy=T);I #### spChk check name
+ # r2moranI[i,]<-c(round(opt.r2,3),round(I$estimate[1],4),round(I$p.value,3))
+  coef<-opt.coef[-1,] 
+  print(my[])
+  print(paste("null.aic = ",round(null.aic,4)))
+  print(paste("ini.aic = ",round(ini.aic,4)))
+  print(paste("opt.aic = ",round(opt.aic,4)))
+  index_Obs_FDq1=data.frame(my,null.aic,ini.aic,opt.aic,opt.coef,opt.r2,I$statistic,I$p.value)
+
+
+write.csv(index_Obs_FDq1,file = "st_Obs_FDq1.csv")
+```
+
+# Obs_FDq2  SAR model
+```{r}
+
+hl<-combn(1:20,20)
+rl<- colnames(data)[8:27]
+xl0<-as.formula(paste("Obs_FDq2 ~",paste(rl[hl[,1]],collapse = " + ")))
+
+
+least_aic_Obs_FDq2<-
+{
+  data=data
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  
+  ## sem model
+  mod.sem <-spatialreg::errorsarlm(xl0, data=data,
+                                   listw=W_cont_el_mat2,zero.policy=T)  
+  sem<-summary(mod.sem,Nagelkerke=T)
+  sem.coef<-round(sem$Coef,4);sem.coef
+  sem.r2<-sem$NK;sem.r2
+  sem.aic<-AIC(mod.sem);sem.aic
+  hl0<-combn(1:20,19)
+  rl0<-c("Nat_dis","LSR","IE_lmx","Riv_a","GTD",
+         "Bio1","Bio2","Bio8","Bio12","Bio15",
+         "Elev_range","Str_gra","For_ext","Cro_ext","Area",
+         "GDP","HDI","HFP","HMG","Sam_eff")
+  
+  comb<-NULL
+  for(i in 1:20)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl0[hl0[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x,data=data,                       listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=1,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl1<-combn(1:19,18)
+  rl1<-rl0[hl0[,which(comb$aic==min(comb$aic))]]
+  for(i in 1:19)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl1[hl1[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=2,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl2<-combn(1:18,17)
+  rl2<-rl1[hl1[,which(comb$aic==min(comb$aic[-(1:20)]))-20]]
+  for(i in 1:18)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl2[hl2[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=3,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  hl3<-combn(1:17,16)
+  rl3<-rl2[hl2[,which(comb$aic==min(comb$aic[-(1:39)]))-39]]
+  for(i in 1:17)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl3[hl3[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=4,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl4<-combn(1:16,15)
+  rl4<-rl3[hl3[,which(comb$aic==min(comb$aic[-(1:57)]))-57]]
+  for(i in 1:16)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl4[hl4[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=5,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl5<-combn(1:15,14)
+  rl5<-rl4[hl4[,which(comb$aic==min(comb$aic[-(1:74)]))-74]]
+  for(i in 1:15)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl5[hl5[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=6,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+  
+    hl6<-combn(1:14,13)
+  rl6<-rl5[hl5[,which(comb$aic==min(comb$aic[-(1:90)]))-90]]
+  for(i in 1:14)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl6[hl6[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=7,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+    hl7<-combn(1:13,12)
+  rl7<-rl6[hl6[,which(comb$aic==min(comb$aic[-(1:105)]))-105]]
+  for(i in 1:13)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl7[hl7[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=8,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  }
+  
+ 
+    hl8<-combn(1:12,11)
+  rl8<-rl7[hl7[,which(comb$aic==min(comb$aic[-(1:119)]))-119]]
+  for(i in 1:12)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl8[hl8[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=9,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+   hl9<-combn(1:11,10)
+  rl9<-rl8[hl8[,which(comb$aic==min(comb$aic[-(1:132)]))-132]]
+  for(i in 1:11)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl9[hl9[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=10,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl10<-combn(1:10,9)
+  rl10<-rl9[hl9[,which(comb$aic==min(comb$aic[-(1:144)]))-144]]
+  for(i in 1:10)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl10[hl10[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=11,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl11<-combn(1:9,8)
+  rl11<-rl10[hl10[,which(comb$aic==min(comb$aic[-(1:155)]))-155]]
+  for(i in 1:9)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl11[hl11[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=12,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl12<-combn(1:8,7)
+  rl12<-rl11[hl11[,which(comb$aic==min(comb$aic[-(1:165)]))-165]]
+  for(i in 1:8)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl12[hl12[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=13,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl13<-combn(1:7,6)
+  rl13<-rl12[hl12[,which(comb$aic==min(comb$aic[-(1:174)]))-174]]
+  for(i in 1:7)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl13[hl13[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=14,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+   hl14<-combn(1:6,5)
+  rl14<-rl13[hl13[,which(comb$aic==min(comb$aic[-(1:182)]))-182]]
+  for(i in 1:6)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl14[hl14[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=15,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl15<-combn(1:5,4)
+  rl15<-rl14[hl14[,which(comb$aic==min(comb$aic[-(1:189)]))-189]]
+  for(i in 1:5)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl15[hl15[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=16,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+    hl16<-combn(1:4,3)
+  rl16<-rl15[hl15[,which(comb$aic==min(comb$aic[-(1:195)]))-195]]
+  for(i in 1:4)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl16[hl16[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=17,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+      hl17<-combn(1:3,2)
+  rl17<-rl16[hl16[,which(comb$aic==min(comb$aic[-(1:200)]))-200]]
+  for(i in 1:3)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl17[hl17[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=18,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+    hl18<-combn(1:2,1)
+  rl18<-rl17[hl17[,which(comb$aic==min(comb$aic[-(1:204)]))-204]]
+  for(i in 1:2)
+  {
+    x<-as.formula(paste("Obs_FDq2 ~",paste(rl18[hl18[,i]],collapse = " + ")))
+    mod.sem <-spatialreg::errorsarlm(x, data=data,
+    listw=W_cont_el_mat2,zero.policy=T)
+    sem.aic<-AIC(mod.sem);print(sem.aic)
+    com<-data.frame(m=19,n=i,aic=sem.aic)
+    comb<-rbind(comb,com)
+  } 
+  
+     hl19<-combn(1:1,1)
+  rl19<-rl18[hl18[,which(comb$aic==min(comb$aic[-(1:207)]))-207]]
+  
+  list(comb,list(rl0,rl1,rl2,rl3,rl4,rl5,rl6,rl7,rl8,rl9,rl10,rl11,rl12,rl13,rl14,rl15,rl16,rl17,rl18,rl19))
+}
+##### end of the function 
+
+m2<-least_aic_Obs_FDq2[[2]][least_aic_Obs_FDq2[[1]][which(least_aic_Obs_FDq2[[1]]$aic==min(least_aic_Obs_FDq2[[1]]$aic)),1]+1] 
+
+```
+
+# Obs_FDq2 optimal SAR model and Moran's I test
+```{r}
+
+  my <- "Obs_FDq2"
+  comb_SEM<-list(m2)
+  names(comb_SEM)<-my
+  data=data
+  x<-as.formula(paste("Obs_FDq2 ~",paste(unlist(comb_SEM[[my]]),collapse = " + ")))
+  morI<-merge(shp,data,by.x="HYBAS_ID",by.y="HYBAS_ID",all.x=F)
+  W_cont_el_mat2=nb2listw(new_queen_nb, style="W",zero.policy=TRUE)
+  y<-as.data.frame(morI)
+  y<-data.frame(HYBAS_ID=y$HYBAS_ID)###name order of morI
+  data<-merge(y,data,by.x="HYBAS_ID",by.y="HYBAS_ID",sort=F)
+  ## sem model 
+  mod.null<-spatialreg::errorsarlm(Obs_FDq2~1, data=data,listw=W_cont_el_mat2,Durbin = F, zero.policy=T) # null model
+  null.aic<-AIC(mod.null)
+  mod.ini<-spatialreg::errorsarlm(xl0, data=data, listw=W_cont_el_mat2,zero.policy=T) # initial model
+  ini.aic<-AIC(mod.ini)
+  mod.opt <-spatialreg::errorsarlm(x, data=data, listw=W_cont_el_mat2,zero.policy=T) # optimal model 
+  opt<-summary(mod.opt,Nagelkerke=T)
+  opt.coef<-round(opt$Coef,4)
+  opt.r2<-opt$NK;opt.r2
+  opt.aic<-AIC(mod.opt)
+  res <- mod.opt$residuals
+  names(res)<-data$HYBAS_ID
+  I<-moran.test(res,listw=W_cont_el_mat2,zero.policy=T);I #### spChk check name
+ # r2moranI[i,]<-c(round(opt.r2,3),round(I$estimate[1],4),round(I$p.value,3))
+  coef<-opt.coef[-1,] 
+  print(my[])
+  print(paste("null.aic = ",round(null.aic,4)))
+  print(paste("ini.aic = ",round(ini.aic,4)))
+  print(paste("opt.aic = ",round(opt.aic,4)))
+  index_Obs_FDq2=data.frame(my,null.aic,ini.aic,opt.aic,opt.coef,opt.r2,I$statistic,I$p.value)
+
+
+write.csv(index_Obs_FDq2,file = "st_Obs_FDq2.csv")
+```

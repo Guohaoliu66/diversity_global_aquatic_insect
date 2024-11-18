@@ -1,0 +1,1112 @@
+---
+  title: "diversity_global_aquatic_insect"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+#1.0 Standardised
+```{r}
+setwd(".../input")
+library(ggplot2)
+library(ggthemes)
+library(ggtext)
+SAR_data=read.csv("SAR.csv",header = T)
+
+data.o=SAR_data[,c(1,2,6,7,9)]
+data.o$sig <- ""
+data.o$sig[data.o$Pr...z.. < 0.001] <- "***"
+data.o$sig[data.o$Pr...z.. >= 0.001 & data.o$Pr...z.. < 0.01] <- "**"
+data.o$sig[data.o$Pr...z.. >= 0.01 & data.o$Pr...z.. < 0.05] <- "*"
+
+```
+
+# TDq0
+```{r}
+data_TDq0=data.o[which(data.o$bioindex=="TDq0"),]
+min=data_TDq0$Estimate-data_TDq0$Std..Error
+med=data_TDq0$Estimate
+max=data_TDq0$Estimate+data_TDq0$Std..Error
+
+data.p_TDq0=as.data.frame(cbind(min, med, max))
+data.p_TDq0$x=data_TDq0$var
+data.p_TDq0$x <- factor(data.p_TDq0$x, levels  = rev(unique(data.p_TDq0$x)))
+
+#### stop and check manually
+
+data.p_TDq0$group <- paste0("group", c(rep(1, 2), rep(2, 5),
+                                rep(3, 2), rep(4, 4)
+                                ))
+data.p_TDq0$group_col <- c(rep("darkseagreen", 2), rep("#78bee5", 5),
+                    rep("#e7a40e", 2), rep("lightpink", 4))
+
+data.p_TDq0$p<- ifelse(data_TDq0$Pr...z.. < 0.001, "***",
+                ifelse(data_TDq0$Pr...z..< 0.01, "**",
+                       ifelse(data_TDq0$Pr...z..< 0.05, "*", "")))
+
+data.p_TDq0$p_col[which(data.p_TDq0$p == "*" & data.p_TDq0$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "**" & data.p_TDq0$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "***" & data.p_TDq0$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "" & data.p_TDq0$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "*" & data.p_TDq0$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "**" & data.p_TDq0$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "***" & data.p_TDq0$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "" & data.p_TDq0$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_TDq0 <- ggplot(data.p_TDq0)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 1.1, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.5,4.5,6.5,11.5),
+           xmax = c(4.5,6.5,11.5,13.5),
+           ymin = -13, ymax = 13, alpha = 0.3, fill = rev(unique(data.p_TDq0$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "TDq0")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_TDq0)
+
+ggsave("plots_TDq0.pdf", height = 5, width = 6.6)
+```
+
+# TDq1
+```{r}
+data_TDq1=data.o[which(data.o$bioindex=="TDq1"),]
+min=data_TDq1$Estimate-data_TDq1$Std..Error
+med=data_TDq1$Estimate
+max=data_TDq1$Estimate+data_TDq1$Std..Error
+
+data.p_TDq1=as.data.frame(cbind(min, med, max))
+data.p_TDq1$x=data_TDq1$var
+data.p_TDq1$x <- factor(data.p_TDq1$x, levels  = rev(unique(data.p_TDq1$x)))
+
+#### stop and check manually
+
+data.p_TDq1$group <- paste0("group", c(rep(1, 4), rep(2, 1),
+                                rep(3, 3), rep(4, 3)
+                                ))
+data.p_TDq1$group_col <- c(rep("darkseagreen", 4), rep("#78bee5", 1),
+                    rep("#e7a40e", 3), rep("lightpink", 3))
+
+data.p_TDq1$p<- ifelse(data_TDq1$Pr...z.. < 0.001, "***",
+                ifelse(data_TDq1$Pr...z..< 0.01, "**",
+                       ifelse(data_TDq1$Pr...z..< 0.05, "*", "")))
+
+data.p_TDq1$p_col[which(data.p_TDq1$p == "*" & data.p_TDq1$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "**" & data.p_TDq1$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "***" & data.p_TDq1$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "" & data.p_TDq1$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "*" & data.p_TDq1$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "**" & data.p_TDq1$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "***" & data.p_TDq1$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "" & data.p_TDq1$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_TDq1 <- ggplot(data.p_TDq1)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.5, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.5,3.5,6.5,7.5),
+           xmax = c(3.5,6.5,7.5,11.5),
+           ymin = -6, ymax = 6, alpha = 0.3, fill = rev(unique(data.p_TDq1$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "TDq1")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_TDq1)
+
+ggsave("plots_TDq1.pdf", height = 5, width = 6.6)
+```
+
+# TDq2
+```{r}
+data_TDq2=data.o[which(data.o$bioindex=="TDq2"),]
+min=data_TDq2$Estimate-data_TDq2$Std..Error
+med=data_TDq2$Estimate
+max=data_TDq2$Estimate+data_TDq2$Std..Error
+
+data.p_TDq2=as.data.frame(cbind(min, med, max))
+data.p_TDq2$x=data_TDq2$var
+data.p_TDq2$x <- factor(data.p_TDq2$x, levels  = rev(unique(data.p_TDq2$x)))
+
+#### stop and check manually
+
+data.p_TDq2$group <- paste0("group", c(rep(1, 4), rep(2, 1),
+                                rep(3, 3), rep(4, 3)
+                                ))
+data.p_TDq2$group_col <- c(rep("darkseagreen", 4), rep("#78bee5", 1),
+                    rep("#e7a40e", 3), rep("lightpink", 3))
+
+data.p_TDq2$p<- ifelse(data_TDq2$Pr...z.. < 0.001, "***",
+                ifelse(data_TDq2$Pr...z..< 0.01, "**",
+                       ifelse(data_TDq2$Pr...z..< 0.05, "*", "")))
+
+data.p_TDq2$p_col[which(data.p_TDq2$p == "*" & data.p_TDq2$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "**" & data.p_TDq2$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "***" & data.p_TDq2$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "" & data.p_TDq2$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "*" & data.p_TDq2$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "**" & data.p_TDq2$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "***" & data.p_TDq2$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "" & data.p_TDq2$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_TDq2 <- ggplot(data.p_TDq2)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.5, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.5,3.5,6.5,7.5),
+           xmax = c(3.5,6.5,7.5,11.5),
+           ymin = -4.5, ymax = 4.5, alpha = 0.3, fill = rev(unique(data.p_TDq2$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "TDq2")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_TDq2)
+
+ggsave("plots_TDq2.pdf", height = 5, width = 6.6)
+```
+
+# FDq0
+```{r}
+data_FDq0=data.o[which(data.o$bioindex=="FDq0"),]
+min=data_FDq0$Estimate-data_FDq0$Std..Error
+med=data_FDq0$Estimate
+max=data_FDq0$Estimate+data_FDq0$Std..Error
+
+data.p_FDq0=as.data.frame(cbind(min, med, max))
+data.p_FDq0$x=data_FDq0$var
+data.p_FDq0$x <- factor(data.p_FDq0$x, levels  = rev(unique(data.p_FDq0$x)))
+
+#### stop and check manually
+
+data.p_FDq0$group <- paste0("group", c(rep(1, 3), rep(2, 4),
+                                rep(3, 2), rep(4, 4)
+                                ))
+data.p_FDq0$group_col <- c(rep("darkseagreen", 3), rep("#78bee5", 4),
+                    rep("#e7a40e", 2), rep("lightpink", 4))
+
+data.p_FDq0$p<- ifelse(data_FDq0$Pr...z.. < 0.001, "***",
+                ifelse(data_FDq0$Pr...z..< 0.01, "**",
+                       ifelse(data_FDq0$Pr...z..< 0.05, "*", "")))
+
+data.p_FDq0$p_col[which(data.p_FDq0$p == "*" & data.p_FDq0$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "**" & data.p_FDq0$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "***" & data.p_FDq0$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "" & data.p_FDq0$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "*" & data.p_FDq0$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "**" & data.p_FDq0$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "***" & data.p_FDq0$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "" & data.p_FDq0$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_FDq0 <- ggplot(data.p_FDq0)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.14, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.5,4.5,6.5,10.5),
+           xmax = c(4.5,6.5,10.5,13.5),
+           ymin = -1.5, ymax = 1.5, alpha = 0.3, fill = rev(unique(data.p_FDq0$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "FDq0")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_FDq0)
+
+ggsave("plots_FDq0.pdf", height = 5, width = 6.6)
+```
+
+# FDq1
+```{r}
+data_FDq1=data.o[which(data.o$bioindex=="FDq1"),]
+min=data_FDq1$Estimate-data_FDq1$Std..Error
+med=data_FDq1$Estimate
+max=data_FDq1$Estimate+data_FDq1$Std..Error
+
+data.p_FDq1=as.data.frame(cbind(min, med, max))
+data.p_FDq1$x=data_FDq1$var
+data.p_FDq1$x <- factor(data.p_FDq1$x, levels  = rev(unique(data.p_FDq1$x)))
+
+#### stop and check manually
+
+data.p_FDq1$group <- paste0("group", c(rep(1, 2), rep(2, 2),
+                                rep(3, 2), rep(4, 3)
+                                ))
+data.p_FDq1$group_col <- c(rep("darkseagreen", 2), rep("#78bee5", 2),
+                    rep("#e7a40e", 2), rep("lightpink", 3))
+
+data.p_FDq1$p<- ifelse(data_FDq1$Pr...z.. < 0.001, "***",
+                ifelse(data_FDq1$Pr...z..< 0.01, "**",
+                       ifelse(data_FDq1$Pr...z..< 0.05, "*", "")))
+
+data.p_FDq1$p_col[which(data.p_FDq1$p == "*" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "**" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "***" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "" & data.p_FDq1$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "*" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "**" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "***" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "" & data.p_FDq1$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_FDq1 <- ggplot(data.p_FDq1)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.05, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.4,3.5,5.5,7.5),
+           xmax = c(5.5,5.5,7.5,9.6),
+           ymin = -0.75, ymax = 0.75, alpha = 0.3, fill = rev(unique(data.p_FDq1$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "FDq1")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_FDq1)
+
+ggsave("plots_FDq1.pdf", height = 5, width = 6.6)
+```
+
+```{r}
+cowplot::plot_grid(p_SR, p_SH,p_FRic,p_FEve,p_T.total,p_T.turnover, p_T.nestedness, p_T.nestedness.proportion, p_F.total, p_F.turnover, p_F.nestedness, p_F.nestedness.proportion,  nrow=4, ncol = 4,align="hv")
+
+ggsave("SAR_all.pdf", height = 15, width = 28)
+```
+
+
+# FDq1
+```{r}
+data_FDq1=data.o[which(data.o$bioindex=="FDq1"),]
+min=data_FDq1$Estimate-data_FDq1$Std..Error
+med=data_FDq1$Estimate
+max=data_FDq1$Estimate+data_FDq1$Std..Error
+
+data.p_FDq1=as.data.frame(cbind(min, med, max))
+data.p_FDq1$x=data_FDq1$var
+data.p_FDq1$x <- factor(data.p_FDq1$x, levels  = rev(unique(data.p_FDq1$x)))
+
+#### stop and check manually
+
+data.p_FDq1$group <- paste0("group", c(rep(1, 2), rep(2, 2),
+                                rep(3, 2), rep(4, 3)
+                                ))
+data.p_FDq1$group_col <- c(rep("darkseagreen", 2), rep("#78bee5", 2),
+                    rep("#e7a40e", 2), rep("lightpink", 3))
+
+data.p_FDq1$p<- ifelse(data_FDq1$Pr...z.. < 0.001, "***",
+                ifelse(data_FDq1$Pr...z..< 0.01, "**",
+                       ifelse(data_FDq1$Pr...z..< 0.05, "*", "")))
+
+data.p_FDq1$p_col[which(data.p_FDq1$p == "*" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "**" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "***" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "" & data.p_FDq1$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "*" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "**" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "***" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "" & data.p_FDq1$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_FDq1 <- ggplot(data.p_FDq1)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.05, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.4,3.5,5.5,7.5),
+           xmax = c(3.5,5.5,7.5,9.6),
+           ymin = -0.75, ymax = 0.75, alpha = 0.3, fill = rev(unique(data.p_FDq1$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "FDq1")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_FDq1)
+
+ggsave("plots_FDq1.pdf", height = 5, width = 6.6)
+```
+
+
+# FDq2
+```{r}
+data_FDq2=data.o[which(data.o$bioindex=="FDq2"),]
+min=data_FDq2$Estimate-data_FDq2$Std..Error
+med=data_FDq2$Estimate
+max=data_FDq2$Estimate+data_FDq2$Std..Error
+
+data.p_FDq2=as.data.frame(cbind(min, med, max))
+data.p_FDq2$x=data_FDq2$var
+data.p_FDq2$x <- factor(data.p_FDq2$x, levels  = rev(unique(data.p_FDq2$x)))
+
+#### stop and check manually
+
+data.p_FDq2$group <- paste0("group", c(rep(1, 1), rep(2, 1),
+                                rep(3, 2), rep(4, 1)
+                                ))
+data.p_FDq2$group_col <- c(rep("darkseagreen", 1), rep("#78bee5", 1),
+                    rep("#e7a40e", 2), rep("lightpink", 1))
+
+data.p_FDq2$p<- ifelse(data_FDq2$Pr...z.. < 0.001, "***",
+                ifelse(data_FDq2$Pr...z..< 0.01, "**",
+                       ifelse(data_FDq2$Pr...z..< 0.05, "*", "")))
+
+data.p_FDq2$p_col[which(data.p_FDq2$p == "*" & data.p_FDq2$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "**" & data.p_FDq2$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "***" & data.p_FDq2$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "" & data.p_FDq2$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "*" & data.p_FDq2$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "**" & data.p_FDq2$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "***" & data.p_FDq2$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "" & data.p_FDq2$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_FDq2 <- ggplot(data.p_FDq2)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.05, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.4,1.5,3.5,4.5),
+           xmax = c(1.5,3.5,4.5,5.6),
+           ymin = -0.7, ymax = 0.7, alpha = 0.3, fill = rev(unique(data.p_FDq2$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "FDq2")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_FDq2)
+
+ggsave("plots_FDq2.pdf", height = 5, width = 6.6)
+```
+
+
+#2.0 Observed
+```{r}
+setwd("E:/桌面/EPTO_NEW")
+library(ggplot2)
+library(ggthemes)
+library(ggtext)
+SAR_data=read.csv("SAR_ob.csv",header = T)
+
+data.o=SAR_data[,c(1,2,6,7,9)]
+data.o$sig <- ""
+data.o$sig[data.o$Pr...z.. < 0.001] <- "***"
+data.o$sig[data.o$Pr...z.. >= 0.001 & data.o$Pr...z.. < 0.01] <- "**"
+data.o$sig[data.o$Pr...z.. >= 0.01 & data.o$Pr...z.. < 0.05] <- "*"
+
+```
+
+# TDq0
+```{r}
+data_TDq0=data.o[which(data.o$bioindex=="TDq0"),]
+min=data_TDq0$Estimate-data_TDq0$Std..Error
+med=data_TDq0$Estimate
+max=data_TDq0$Estimate+data_TDq0$Std..Error
+
+data.p_TDq0=as.data.frame(cbind(min, med, max))
+data.p_TDq0$x=data_TDq0$var
+data.p_TDq0$x <- factor(data.p_TDq0$x, levels  = rev(unique(data.p_TDq0$x)))
+
+#### stop and check manually
+
+data.p_TDq0$group <- paste0("group", c(rep(1, 4), rep(2, 1),
+                                rep(3, 4), rep(4, 4)
+                                ))
+data.p_TDq0$group_col <- c(rep("darkseagreen", 4), rep("#78bee5", 1),
+                    rep("#e7a40e", 4), rep("lightpink", 4))
+
+data.p_TDq0$p<- ifelse(data_TDq0$Pr...z.. < 0.001, "***",
+                ifelse(data_TDq0$Pr...z..< 0.01, "**",
+                       ifelse(data_TDq0$Pr...z..< 0.05, "*", "")))
+
+data.p_TDq0$p_col[which(data.p_TDq0$p == "*" & data.p_TDq0$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "**" & data.p_TDq0$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "***" & data.p_TDq0$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "" & data.p_TDq0$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "*" & data.p_TDq0$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "**" & data.p_TDq0$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "***" & data.p_TDq0$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_TDq0$p_col[which(data.p_TDq0$p == "" & data.p_TDq0$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_TDq0 <- ggplot(data.p_TDq0)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 1.1, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.5,4.5,8.5,9.5),
+           xmax = c(4.5,8.5,9.5,13.5),
+           ymin = -30, ymax = 30, alpha = 0.3, fill = rev(unique(data.p_TDq0$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "TDq0")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_TDq0)
+
+ggsave("plots_TDq0ob.pdf", height = 5, width = 6.6)
+```
+
+# TDq1
+```{r}
+data_TDq1=data.o[which(data.o$bioindex=="TDq1"),]
+min=data_TDq1$Estimate-data_TDq1$Std..Error
+med=data_TDq1$Estimate
+max=data_TDq1$Estimate+data_TDq1$Std..Error
+
+data.p_TDq1=as.data.frame(cbind(min, med, max))
+data.p_TDq1$x=data_TDq1$var
+data.p_TDq1$x <- factor(data.p_TDq1$x, levels  = rev(unique(data.p_TDq1$x)))
+
+#### stop and check manually
+
+data.p_TDq1$group <- paste0("group", c(rep(1, 4), rep(2, 1),
+                                rep(3, 3), rep(4, 3)
+                                ))
+data.p_TDq1$group_col <- c(rep("darkseagreen", 4), rep("#78bee5", 1),
+                    rep("#e7a40e", 3), rep("lightpink", 3))
+
+data.p_TDq1$p<- ifelse(data_TDq1$Pr...z.. < 0.001, "***",
+                ifelse(data_TDq1$Pr...z..< 0.01, "**",
+                       ifelse(data_TDq1$Pr...z..< 0.05, "*", "")))
+
+data.p_TDq1$p_col[which(data.p_TDq1$p == "*" & data.p_TDq1$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "**" & data.p_TDq1$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "***" & data.p_TDq1$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "" & data.p_TDq1$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "*" & data.p_TDq1$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "**" & data.p_TDq1$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "***" & data.p_TDq1$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_TDq1$p_col[which(data.p_TDq1$p == "" & data.p_TDq1$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_TDq1 <- ggplot(data.p_TDq1)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.5, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.5,3.5,6.5,7.5),
+           xmax = c(3.5,6.5,7.5,11.5),
+           ymin = -9, ymax = 9, alpha = 0.3, fill = rev(unique(data.p_TDq1$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "TDq1")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_TDq1)
+
+ggsave("plots_TDq1ob.pdf", height = 5, width = 6.6)
+```
+
+# TDq2
+```{r}
+data_TDq2=data.o[which(data.o$bioindex=="TDq2"),]
+min=data_TDq2$Estimate-data_TDq2$Std..Error
+med=data_TDq2$Estimate
+max=data_TDq2$Estimate+data_TDq2$Std..Error
+
+data.p_TDq2=as.data.frame(cbind(min, med, max))
+data.p_TDq2$x=data_TDq2$var
+data.p_TDq2$x <- factor(data.p_TDq2$x, levels  = rev(unique(data.p_TDq2$x)))
+
+#### stop and check manually
+
+data.p_TDq2$group <- paste0("group", c(rep(1, 3), rep(2, 1),
+                                rep(3, 3), rep(4, 3)
+                                ))
+data.p_TDq2$group_col <- c(rep("darkseagreen", 3), rep("#78bee5", 1),
+                    rep("#e7a40e", 3), rep("lightpink", 3))
+
+data.p_TDq2$p<- ifelse(data_TDq2$Pr...z.. < 0.001, "***",
+                ifelse(data_TDq2$Pr...z..< 0.01, "**",
+                       ifelse(data_TDq2$Pr...z..< 0.05, "*", "")))
+
+data.p_TDq2$p_col[which(data.p_TDq2$p == "*" & data.p_TDq2$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "**" & data.p_TDq2$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "***" & data.p_TDq2$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "" & data.p_TDq2$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "*" & data.p_TDq2$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "**" & data.p_TDq2$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "***" & data.p_TDq2$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_TDq2$p_col[which(data.p_TDq2$p == "" & data.p_TDq2$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_TDq2 <- ggplot(data.p_TDq2)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.5, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.4,3.5,6.5,7.5),
+           xmax = c(3.5,6.5,7.5,10.6),
+           ymin = -4.5, ymax = 4.5, alpha = 0.3, fill = rev(unique(data.p_TDq2$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "TDq2")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_TDq2)
+
+ggsave("plots_TDq2ob.pdf", height = 5, width = 6.6)
+```
+
+# FDq0
+```{r}
+data_FDq0=data.o[which(data.o$bioindex=="FDq0"),]
+min=data_FDq0$Estimate-data_FDq0$Std..Error
+med=data_FDq0$Estimate
+max=data_FDq0$Estimate+data_FDq0$Std..Error
+
+data.p_FDq0=as.data.frame(cbind(min, med, max))
+data.p_FDq0$x=data_FDq0$var
+data.p_FDq0$x <- factor(data.p_FDq0$x, levels  = rev(unique(data.p_FDq0$x)))
+
+#### stop and check manually
+
+data.p_FDq0$group <- paste0("group", c(rep(1, 3), rep(2, 3),
+                                rep(3, 2), rep(4, 4)
+                                ))
+data.p_FDq0$group_col <- c(rep("darkseagreen", 3), rep("#78bee5", 3),
+                    rep("#e7a40e", 2), rep("lightpink", 4))
+
+data.p_FDq0$p<- ifelse(data_FDq0$Pr...z.. < 0.001, "***",
+                ifelse(data_FDq0$Pr...z..< 0.01, "**",
+                       ifelse(data_FDq0$Pr...z..< 0.05, "*", "")))
+
+data.p_FDq0$p_col[which(data.p_FDq0$p == "*" & data.p_FDq0$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "**" & data.p_FDq0$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "***" & data.p_FDq0$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "" & data.p_FDq0$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "*" & data.p_FDq0$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "**" & data.p_FDq0$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "***" & data.p_FDq0$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_FDq0$p_col[which(data.p_FDq0$p == "" & data.p_FDq0$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_FDq0 <- ggplot(data.p_FDq0)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.14, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.4,4.5,6.5,9.5),
+           xmax = c(4.5,6.5,9.5,12.6),
+           ymin = -4, ymax = 4, alpha = 0.3, fill = rev(unique(data.p_FDq0$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "FDq0")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_FDq0)
+
+ggsave("plots_FDq0ob.pdf", height = 5, width = 6.6)
+```
+
+# FDq1
+```{r}
+data_FDq1=data.o[which(data.o$bioindex=="FDq1"),]
+min=data_FDq1$Estimate-data_FDq1$Std..Error
+med=data_FDq1$Estimate
+max=data_FDq1$Estimate+data_FDq1$Std..Error
+
+data.p_FDq1=as.data.frame(cbind(min, med, max))
+data.p_FDq1$x=data_FDq1$var
+data.p_FDq1$x <- factor(data.p_FDq1$x, levels  = rev(unique(data.p_FDq1$x)))
+
+#### stop and check manually
+
+data.p_FDq1$group <- paste0("group", c(rep(1, 2), rep(2, 2),
+                                rep(3, 3), rep(4, 3)
+                                ))
+data.p_FDq1$group_col <- c(rep("darkseagreen", 2), rep("#78bee5", 2),
+                    rep("#e7a40e", 3), rep("lightpink", 3))
+
+data.p_FDq1$p<- ifelse(data_FDq1$Pr...z.. < 0.001, "***",
+                ifelse(data_FDq1$Pr...z..< 0.01, "**",
+                       ifelse(data_FDq1$Pr...z..< 0.05, "*", "")))
+
+data.p_FDq1$p_col[which(data.p_FDq1$p == "*" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "**" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "***" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "" & data.p_FDq1$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "*" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "**" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "***" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "" & data.p_FDq1$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_FDq1 <- ggplot(data.p_FDq1)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.05, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.4,3.5,6.5,8.5),
+           xmax = c(3.5,6.5,8.5,10.6),
+           ymin = -1.3, ymax = 1.3, alpha = 0.3, fill = rev(unique(data.p_FDq1$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "FDq1")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_FDq1)
+
+ggsave("plots_FDq1ob.pdf", height = 5, width = 6.6)
+```
+
+```{r}
+cowplot::plot_grid(p_SR, p_SH,p_FRic,p_FEve,p_T.total,p_T.turnover, p_T.nestedness, p_T.nestedness.proportion, p_F.total, p_F.turnover, p_F.nestedness, p_F.nestedness.proportion,  nrow=4, ncol = 4,align="hv")
+
+ggsave("SAR_all.pdf", height = 15, width = 28)
+```
+
+
+# FDq1
+```{r}
+data_FDq1=data.o[which(data.o$bioindex=="FDq1"),]
+min=data_FDq1$Estimate-data_FDq1$Std..Error
+med=data_FDq1$Estimate
+max=data_FDq1$Estimate+data_FDq1$Std..Error
+
+data.p_FDq1=as.data.frame(cbind(min, med, max))
+data.p_FDq1$x=data_FDq1$var
+data.p_FDq1$x <- factor(data.p_FDq1$x, levels  = rev(unique(data.p_FDq1$x)))
+
+#### stop and check manually
+
+data.p_FDq1$group <- paste0("group", c(rep(1, 2), rep(2, 2),
+                                rep(3, 2), rep(4, 3)
+                                ))
+data.p_FDq1$group_col <- c(rep("darkseagreen", 2), rep("#78bee5", 2),
+                    rep("#e7a40e", 2), rep("lightpink", 3))
+
+data.p_FDq1$p<- ifelse(data_FDq1$Pr...z.. < 0.001, "***",
+                ifelse(data_FDq1$Pr...z..< 0.01, "**",
+                       ifelse(data_FDq1$Pr...z..< 0.05, "*", "")))
+
+data.p_FDq1$p_col[which(data.p_FDq1$p == "*" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "**" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "***" & data.p_FDq1$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "" & data.p_FDq1$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "*" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "**" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "***" & data.p_FDq1$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_FDq1$p_col[which(data.p_FDq1$p == "" & data.p_FDq1$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_FDq1 <- ggplot(data.p_FDq1)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.05, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.4,3.5,5.5,7.5),
+           xmax = c(3.5,5.5,7.5,9.6),
+           ymin = -0.75, ymax = 0.75, alpha = 0.3, fill = rev(unique(data.p_FDq1$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "FDq1")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_FDq1)
+
+ggsave("plots_FDq1ob.pdf", height = 5, width = 6.6)
+```
+
+
+# FDq2
+```{r}
+data_FDq2=data.o[which(data.o$bioindex=="FDq2"),]
+min=data_FDq2$Estimate-data_FDq2$Std..Error
+med=data_FDq2$Estimate
+max=data_FDq2$Estimate+data_FDq2$Std..Error
+
+data.p_FDq2=as.data.frame(cbind(min, med, max))
+data.p_FDq2$x=data_FDq2$var
+data.p_FDq2$x <- factor(data.p_FDq2$x, levels  = rev(unique(data.p_FDq2$x)))
+
+#### stop and check manually
+
+data.p_FDq2$group <- paste0("group", c(rep(1, 2), rep(2, 2),
+                                rep(3, 2), rep(4, 3)
+                                ))
+data.p_FDq2$group_col <- c(rep("darkseagreen", 2), rep("#78bee5", 2),
+                    rep("#e7a40e", 2), rep("lightpink", 3))
+
+data.p_FDq2$p<- ifelse(data_FDq2$Pr...z.. < 0.001, "***",
+                ifelse(data_FDq2$Pr...z..< 0.01, "**",
+                       ifelse(data_FDq2$Pr...z..< 0.05, "*", "")))
+
+data.p_FDq2$p_col[which(data.p_FDq2$p == "*" & data.p_FDq2$med <= 0)] <- "Negtive effect(P<0.05)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "**" & data.p_FDq2$med <= 0)] <- "Negtive effect(P<0.01)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "***" & data.p_FDq2$med <= 0)] <- "Negtive effect(P<0.001)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "" & data.p_FDq2$med <= 0)] <- "Negtive effect(P>=0.05)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "*" & data.p_FDq2$med >= 0)] <- "Postive effect(P<0.05)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "**" & data.p_FDq2$med >= 0)] <- "Postive effect(P<0.01)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "***" & data.p_FDq2$med >= 0)] <- "Postive effect(P<0.001)"
+data.p_FDq2$p_col[which(data.p_FDq2$p == "" & data.p_FDq2$med >= 0)] <- "Postive effect(P>=0.05)"
+
+p_FDq2 <- ggplot(data.p_FDq2)+
+  
+  geom_hline(yintercept = 0, linewidth = 0.8)+
+  
+  geom_linerange(aes(x, ymin = min, ymax = max, color = p_col), size=1.0,show.legend = F)+
+ 
+  geom_point(aes(x, med, color = p_col),size=3.0) +
+  
+  geom_text(aes(x, y = max + 0.05, label = p, color =p_col ),size=5, show.legend = F)+
+  
+  scale_color_manual(name = "",
+                     values = c("Negtive effect(P<0.001)"="dodgerblue4",
+                                "Negtive effect(P<0.01)"="steelblue3",
+                                "Negtive effect(P<0.05)"= "#7acfff",
+                                "Negtive effect(P>=0.05)"="lightblue2",
+                                "Postive effect(P<0.001)"="tomato1",
+                                "Postive effect(P<0.01)"="orange",
+                                "Postive effect(P<0.05)"="#ffbd88",
+                                "Postive effect(P>=0.05)"="moccasin"))+
+annotate("rect",
+           xmin = c(0.4,3.5,5.5,7.5),
+           xmax = c(3.5,5.5,7.5,9.6),
+           ymin = -0.7, ymax = 0.7, alpha = 0.3, fill = rev(unique(data.p_FDq2$group_col))) +
+
+  scale_y_continuous(expand = c(0,0))+
+  xlab("")+
+  ylab("Standardized coefficient")+
+  labs(title = "FDq2")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,face = "bold",size = 16),
+        axis.ticks.x = element_line(colour = "black",size = 1),
+        axis.ticks.y = element_line(colour = "black",size = 1),
+        panel.border = element_rect(color = "black", size = 1.2, fill = NA),
+        axis.title.x= element_text(face="bold", color="black",size=12),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold",color = "black"))+
+  coord_flip()
+
+plot(p_FDq2)
+
+ggsave("plots_FDq2ob.pdf", height = 5, width = 6.6)
+```
+
+

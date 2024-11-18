@@ -1,0 +1,189 @@
+---
+  title: "diversity_global_aquatic_insect"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#1.0 Hill Diversity of well-sampled basin (WSB)
+```{r}
+setwd(".../input")
+library(devtools)
+library(iNEXT)
+library(iNEXT.3D)
+
+abu=read.csv("Abundances.csv",header = T,row.names = 1,check.names = FALSE)
+
+a=apply(abu, 2, function(x) iNEXT.3D:::Coverage(x, 'abundance', sum(x))) 
+mid=median(a)
+view(mid)
+view(a)
+
+####################################
+#TD mid  nboot need 50
+TD_est=estimate3D(data = abu, diversity = 'TD', q = c(0,1,2), datatype = 'abundance', base = 'coverage', level = c(mid), nboot = 0)
+#TDq2=TD_est[(TD_est$Order.q=="2"),c(1,5)]
+#write.csv(TDq2,file = "TDq2st.csv")
+
+
+FD_est=estimate3D(data = abu, diversity = 'FD', q = c(2), datatype = 'abundance', base = 'coverage', level = c(mid), nboot = 0, FDdistM = distM)
+FDq2=FD_est[,c(1,5)]
+write.csv(FDq2,file = "FDq2st.csv")
+
+library(parallel)
+library(foreach)
+library(doParallel)
+
+# 检测可用的核心数
+numCores <- detectCores()
+
+# 创建集群
+cl <- makeCluster(numCores)
+
+# 注册集群
+registerDoParallel(cl)
+# 假设 mid 是一个向量，包含不同的 level 值
+mid_values <- c(0.1, 0.2, 0.3)  # 这是一个示例
+
+# 使用 foreach 进行并行计算
+results <- foreach(mid = mid_values, .combine = 'c', .packages = 'iNEXT.3D') %dopar% {
+  FD_est <- estimate3D(data = abu, diversity = 'FD', q = c(2), datatype = 'abundance', base = 'coverage', level = c(mid), nboot = 0, FDdistM = distM)
+  return(FD_est)
+}
+stopCluster(cl)
+
+
+
+
+
+SE_data=TD_est[(TD_est$Order.q=="0"),c(1,5,7)]
+max_se=max(SE_data$s.e.)
+
+#count <- sum(TD_est$Method == "Rarefaction")
+
+###### nboot need50
+TD_iNEXT=iNEXT3D(abu, diversity = "TD", q = c(0, 1), datatype = "abundance", nboot = 50)
+TD_ast=TD_iNEXT$TDAsyEst
+
+#############
+#proportion
+TD_q1_mid=TD_est[(TD_est$Order.q=="1"& TD_est$SC==mid),c(1,5)]
+TD_q1_ast=TD_ast[(TD_ast$`Taxonomic Diversity`=="Shannon diversity"),c(1,3)]
+TD_Proportion=merge(TD_q1_mid, TD_q1_ast, by = "Assemblage")
+TD_Proportion$Proportion <- TD_Proportion$`Taxonomic Observed` / TD_Proportion$qTD
+
+TD_q1_mid=TD_est[(TD_est$Order.q=="0"& TD_est$SC==mid),c(1,5)]
+TD_q1_ast=TD_ast[(TD_ast$`Taxonomic Diversity`=="Species richness"),c(1,3)]
+TD_Proportion=merge(TD_q1_mid, TD_q1_ast, by = "Assemblage")
+TD_Proportion$Proportion <- TD_Proportion$`Taxonomic Observed` / TD_Proportion$qTD
+count <- sum(TD_Proportion$Proportion > 1)
+#write.csv(TD_Proportion,file="pro.csv")
+
+
+TD_pre=TD_iNEXT$TDAsyEst
+TD_pre_pro=TD_pre[(TD_pre$`Taxonomic Diversity`=="Species richness"),c(1,3,4)]
+TD_pre_pro$Proportion <- TD_pre_pro$`Taxonomic Observed` / TD_pre_pro$`Taxonomic Estimator`
+
+write.csv(TD_est,file = "TD_est_mid.csv")
+write.csv(TD_ast,file = "TD_ast.csv")
+write.csv(TD_Proportion,file = "TD_Proportion.csv")
+
+###################################
+#FD
+library(FD)
+ex1 <- gowdis(dummy$trait)
+traits <- read.csv("Trait.csv", row.names = 1, header= TRUE)
+
+distM <- cluster::daisy(x = traits, metric = "gower") %>% as.matrix()
+#dist=data.frame(distM)
+#write.csv(dist,file = "dist.csv")
+FD_est <- estimate3D(data = abu, diversity = 'FD', q = c(0, 1), datatype = 'abundance', base = 'coverage',level = c(mid), nboot = 0, FDdistM = distM)
+
+
+write.csv(FD_est,file = "FD_est_mid.csv")
+```
+
+
+#2.0 Hill Diversity of all basin and Figure 2
+```{r}
+library(devtools)
+library(iNEXT)
+library(iNEXT.3D)
+
+abu2=read.csv("all_abu.csv",header = T,row.names = 1,check.names = FALSE)
+
+a2=apply(abu, 2, function(x) iNEXT.3D:::Coverage(x, 'abundance', sum(x))) 
+mid2=median(a2)
+####################################
+
+
+#################  find max_se
+TD_est=estimate3D(data = abu, diversity = 'TD', q = c(0,1), datatype = 'abundance', base = 'coverage', level = c(mid), nboot = 50)
+SE_data=TD_est[(TD_est$Order.q=="0"),c(1,5,7)]
+max_se=max(SE_data$s.e.)
+#################
+
+
+#TD mid  nboot need 50
+TD_all_est=estimate3D(data = abu2, diversity = 'TD', q = c(0,1), datatype = 'abundance', base = 'coverage', level = c(mid2), nboot = 50)
+
+gap_Basin=TD_all_est[(TD_all_est$Order.q=="0" & TD_all_est$s.e. < max_se),c(1,5,7)]
+
+
+###### no need50
+all_TD_iNEXT=iNEXT3D(abu2, diversity = "TD", q = c(0, 1), datatype = "abundance", nboot = 0)
+all_TD_ast=all_TD_iNEXT$TDAsyEst
+
+#############
+gap_TD_ast=all_TD_ast[which(all_TD_ast$`Taxonomic Diversity` =="Species richness" &  all_TD_ast$Assemblage %in% gap_Basin$Assemblage),]
+
+
+#proportion
+all_TD_q1_mid=TD_all_est[(TD_est$Order.q=="0"& TD_est$SC==mid ),c(1,5)]
+pro=all_TD_q1_mid[which(all_TD_q1_mid$Assemblage %in% gap_TD_ast$Assemblage ),]
+pro_merge=merge(gap_TD_ast,pro, by="Assemblage")
+pro_merge$proportion=pro_merge$`Taxonomic Observed`/pro_merge$qTD
+count <- sum(pro_merge$proportion > 1)
+
+write.csv(pro_merge,file="mid2_01.csv")
+
+```
+
+
+#3.0 Observed TD FD
+```{r}
+library(vegan)
+abu=read.csv("Abundances.csv",header = T,row.names = 1,check.names = FALSE)
+spm=t(abu)
+
+SR=specnumber(spm)
+SR=data.frame(SR)
+
+shannon=diversity(spm,index = "shannon")
+SH=data.frame(shannon)
+
+TD_observe=data.frame(SR,SH)
+
+traits <- read.csv("Trait.csv",  header= TRUE)
+trm.s=traits[which(traits$genus %in% colnames(spm)),]
+
+row.names(trm.s) <- trm.s$genus
+trm.s <- trm.s[, -1]
+
+library(FD)
+FD <- dbFD(trm.s, spm)
+
+FD_reslut=data.frame(FD$FRic,FD$FEve,FD$FDiv,FD$FDis,FD$RaoQ)
+
+write.csv(FD_reslut,file = "FD_reslut.csv")
+
+
+FD_observe=read.csv("FD_reslut.csv",header = T)
+obesrve=data.frame(TD_observe,FD_observe)
+```
+
