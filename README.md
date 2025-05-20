@@ -1,4 +1,4 @@
-# Global freshwater insect diversity and its drivers
+# Global freshwater insect diversity and drivers
 
 ## Project Overview 
 This is a project to explore global freshwater insect diversity and the drivers behind it. Key environmental and anthropogenic factors affecting freshwater insect diversity were revealed by analyzing the diversity of freshwater insects in different regions of the globe (extracted from the EPTO database: https://glowabio.org/project/epto_database/).
