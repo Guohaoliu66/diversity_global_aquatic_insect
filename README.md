@@ -1,14 +1,12 @@
 # Global freshwater insect diversity and drivers
 
 ## Project Overview 
-This is a project to explore global freshwater insect diversity and the drivers behind it. Key environmental and anthropogenic factors affecting freshwater insect diversity were revealed by analyzing the diversity of freshwater insects in different regions of the globe (extracted from the EPTO database: https://glowabio.org/project/epto_database/).
+This is a project to explore global freshwater insect diversity and the drivers. Key environmental and anthropogenic factors affecting freshwater insect diversity were revealed by analyzing the diversity of freshwater insects in different regions of the globe (extracted from the EPTO database: https://glowabio.org/project/epto_database/).
 
 ## Environmental Requirements 
 
-### Hardware Requirements
-Because of the size of the EPTO database (Approx. 3.2GB), a standard computer with enough memory to support user-defined operations is required. We recommend a computer with the following specifications:  
-RAM: 16+ GB  
-CPU: 4+ cores
+### Raw data
+Because of the size of the EPTO database (Approx. 3.2GB), I don't store it here, but you can easily download it from https://glowabio.org/project/epto_database/.  
 
 ### Software Requirements
 This project uses the R (verson 4.3.2) for data analysis, so R and some specific R packages need to be installed. 
