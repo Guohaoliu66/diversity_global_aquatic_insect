@@ -1,0 +1,187 @@
+---
+  title: "latitude pattern"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Latitude pattern TD 
+```{r}
+
+library(mgcv)
+library(dplyr)
+library(ggplot2)
+
+df <- read.csv("all_data.csv")
+df$log_Sam_eff <- log(df$Sam_eff + 1)
+
+pred_lat <- data.frame(Latitude = seq(min(df$Latitude), max(df$Latitude), length.out = 200))
+gam_eff <- gam(log_Sam_eff ~ s(Latitude), data = df)
+pred_lat$log_Sam_eff <- predict(gam_eff, newdata = pred_lat)
+
+div_indices <- c("TDq0", "TDq1", "TDq2")
+n_sim <- 999
+set.seed(123)
+
+plot_df <- data.frame()
+
+for (index in div_indices) {
+  formula_real <- as.formula(paste(index, "~ s(Latitude) + s(log_Sam_eff)"))
+  gam_real <- gam(formula_real, data = df)
+  pred_real <- predict(gam_real, newdata = pred_lat, se.fit = TRUE)
+  fit_real <- pred_real$fit
+  
+  null_preds <- matrix(NA, nrow = n_sim, ncol = nrow(pred_lat))
+  
+  for (i in 1:n_sim) {
+    df$log_Sam_eff_shuffled <- sample(df$log_Sam_eff)
+    gam_null <- gam(formula_real, data = df %>% mutate(log_Sam_eff = log_Sam_eff_shuffled))
+    null_preds[i, ] <- predict(gam_null, newdata = pred_lat)
+  }
+  
+  null_mean <- apply(null_preds, 2, mean)
+  null_upper <- apply(null_preds, 2, quantile, probs = 0.975)
+  null_lower <- apply(null_preds, 2, quantile, probs = 0.025)
+  
+  temp_df <- data.frame(
+    Latitude = pred_lat$Latitude,
+    fit_real = fit_real,
+    null_mean = null_mean,
+    null_upper = null_upper,
+    null_lower = null_lower,
+    Index = index
+  )
+  
+  plot_df <- bind_rows(plot_df, temp_df)
+}
+
+ribbon_fill_color <- c("TDq0" = "#bbbbbb", "TDq1" = "#bbbbbb", "TDq2" = "#bbbbbb")
+null_line_color <- c("TDq0_null" = "darkgray", "TDq1_null" = "darkgray", "TDq2_null" = "darkgray")
+real_line_color <- c("TDq0" = "skyblue", "TDq1" = "#90bfd5", "TDq2" = "#3c7fb1")
+
+plot_df <- plot_df %>%
+  mutate(
+    RibbonGroup = Index,
+    NullLineGroup = paste0(Index, "_null"),
+    RealLineGroup = Index
+  )
+
+ggplot(plot_df, aes(x = Latitude)) +
+
+  geom_ribbon(aes(ymin = null_lower, ymax = null_upper, fill = RibbonGroup), alpha = 0.25, show.legend = FALSE) +
+  scale_fill_manual(values = ribbon_fill_color) +
+
+  geom_line(aes(y = null_mean, color = NullLineGroup), linetype = "dashed", size = 0.8, show.legend = FALSE) +
+  scale_color_manual(values = c(null_line_color, real_line_color)) +
+
+  geom_line(aes(y = fit_real, color = RealLineGroup), size = 1.2) +
+
+theme_minimal() +
+theme(
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  panel.border = element_rect(color = "black", fill = NA, size = 0.8),
+  plot.title = element_blank()
+) +
+labs(
+  x = "Latitude",
+  y = "Diversity Value",
+  color = NULL  
+)
+
+
+#ggsave("L_TD.pdf",  width = 5.5, height = 2.5, units = "in")
+```
+
+# Latitude pattern FD 
+```{r}
+library(mgcv)
+library(dplyr)
+library(ggplot2)
+
+df <- read.csv("all_data.csv")
+df$log_Sam_eff <- log(df$Sam_eff + 1)
+
+pred_lat <- data.frame(Latitude = seq(min(df$Latitude), max(df$Latitude), length.out = 200))
+gam_eff <- gam(log_Sam_eff ~ s(Latitude), data = df)
+pred_lat$log_Sam_eff <- predict(gam_eff, newdata = pred_lat)
+
+div_indices <- c("FDq0", "FDq1", "FDq2")
+n_sim <- 999
+set.seed(123)
+
+plot_df <- data.frame()
+
+for (index in div_indices) {
+  formula_real <- as.formula(paste(index, "~ s(Latitude) + s(log_Sam_eff)"))
+  gam_real <- gam(formula_real, data = df)
+  pred_real <- predict(gam_real, newdata = pred_lat, se.fit = TRUE)
+  fit_real <- pred_real$fit
+  
+  null_preds <- matrix(NA, nrow = n_sim, ncol = nrow(pred_lat))
+  
+  for (i in 1:n_sim) {
+    df$log_Sam_eff_shuffled <- sample(df$log_Sam_eff)
+    gam_null <- gam(formula_real, data = df %>% mutate(log_Sam_eff = log_Sam_eff_shuffled))
+    null_preds[i, ] <- predict(gam_null, newdata = pred_lat)
+  }
+  
+  null_mean <- apply(null_preds, 2, mean)
+  null_upper <- apply(null_preds, 2, quantile, probs = 0.975)
+  null_lower <- apply(null_preds, 2, quantile, probs = 0.025)
+  
+  temp_df <- data.frame(
+    Latitude = pred_lat$Latitude,
+    fit_real = fit_real,
+    null_mean = null_mean,
+    null_upper = null_upper,
+    null_lower = null_lower,
+    Index = index
+  )
+  
+  plot_df <- bind_rows(plot_df, temp_df)
+}
+
+ribbon_fill_color <- c("FDq0" = "#bbbbbb", "FDq1" = "#bbbbbb", "FDq2" = "#bbbbbb")
+null_line_color <- c("FDq0_null" = "darkgray", "FDq1_null" = "darkgray", "FDq2_null" = "darkgray")
+real_line_color <- c("FDq0" = "#ffbd88", "FDq1" = "#eabaa1", "FDq2" = "#dc917b")
+
+plot_df <- plot_df %>%
+  mutate(
+    RibbonGroup = Index,
+    NullLineGroup = paste0(Index, "_null"),
+    RealLineGroup = Index
+  )
+
+
+ggplot(plot_df, aes(x = Latitude)) +
+
+  geom_ribbon(aes(ymin = null_lower, ymax = null_upper, fill = RibbonGroup), alpha = 0.25, show.legend = FALSE) +
+  scale_fill_manual(values = ribbon_fill_color) +
+
+  geom_line(aes(y = null_mean, color = NullLineGroup), linetype = "dashed", size = 0.8, show.legend = FALSE) +
+  scale_color_manual(values = c(null_line_color, real_line_color)) +
+
+  geom_line(aes(y = fit_real, color = RealLineGroup), size = 1.2) +
+
+theme_minimal() +
+theme(
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  panel.border = element_rect(color = "black", fill = NA, size = 0.8),
+  plot.title = element_blank()
+) +
+labs(
+  x = "Latitude",
+  y = "Diversity Value",
+  color = NULL  
+)
+
+ggsave("F_TD.pdf",  width = 5.5, height = 2.5, units = "in")
+```
+
+

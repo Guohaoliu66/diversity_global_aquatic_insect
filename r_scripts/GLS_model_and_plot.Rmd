@@ -1,0 +1,403 @@
+---
+  title: "GLS model"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#1.0 Import data
+```{r}
+library(ggplot2)
+library(ggpmisc)
+library(patchwork)
+library(rlang)
+
+setwd("")
+df <- read.csv("all_data.csv")
+
+df$log_Sam_eff <- log(df$Sam_eff)
+
+diversity_vars <- list(
+  list(obs = "Obs_TDq0", std = "TDq0", title = "Taxonomic diversity (q = 0)"),
+  list(obs = "Obs_TDq1", std = "TDq1", title = "Taxonomic diversity (q = 1)"),
+  list(obs = "Obs_TDq2", std = "TDq2", title = "Taxonomic diversity (q = 2)"),
+  list(obs = "Obs_FDq0", std = "FDq0", title = "Functional diversity (q = 0)"),
+  list(obs = "Obs_FDq1", std = "FDq1", title = "Functional diversity (q = 1)"),
+  list(obs = "Obs_FDq2", std = "FDq2", title = "Functional diversity (q = 2)")
+)
+
+x_vars <- list(
+  list(var = "log_Sam_eff", label = "Sampling effort"),
+  list(var = "year_range", label = "Time span (Year)")
+)
+
+plot_diversity <- function(data, x_var, y_obs, y_std, title, x_label) {
+  ggplot(data, aes(x = !!sym(x_var))) +
+    geom_point(aes(y = !!sym(y_obs)), color = "orange", alpha = 0.6) +
+    geom_point(aes(y = !!sym(y_std)), color = "steelblue", alpha = 0.6) +
+    geom_smooth(aes(y = !!sym(y_obs)), method = "lm", se = TRUE, color = "orange") +
+    geom_smooth(aes(y = !!sym(y_std)), method = "lm", se = TRUE, color = "steelblue") +
+    stat_poly_eq(aes(y = !!sym(y_obs), label = paste(..rr.label.., sep = "")),
+                 formula = y ~ x, parse = TRUE, label.x = "right", label.y = 1,
+                 color = "orange") +
+    stat_poly_eq(aes(y = !!sym(y_std), label = paste(..rr.label.., sep = "")),
+                 formula = y ~ x, parse = TRUE, label.x = "right", label.y = 0.9,
+                 color = "steelblue") +
+    labs(title = title, x = x_label, y = "Diversity value") +
+    theme_minimal(base_size = 10)
+}
+
+plots <- list()
+for (x in x_vars) {
+  for (div in diversity_vars) {
+    p <- plot_diversity(df, x_var = x$var, y_obs = div$obs, y_std = div$std,
+                        title = div$title, x_label = x$label)
+    plots <- append(plots, list(p))
+  }
+}
+
+final_plot <- (plots[[1]] + plots[[2]] + plots[[3]]) /
+              (plots[[4]] + plots[[5]] + plots[[6]]) /
+              (plots[[7]] + plots[[8]] + plots[[9]]) /
+              (plots[[10]] + plots[[11]] + plots[[12]])
+
+print(final_plot)
+
+
+
+
+
+```
+
+
+#  Time span Plot
+```{r}
+library(nlme)
+library(ggplot2)
+library(cowplot)
+library(sp)
+library(spdep)
+
+data <- read.csv("all_data.csv")
+
+get_stars <- function(p) {
+  if (p < 0.001) return("***")
+  else if (p < 0.01) return("**")
+  else if (p < 0.05) return("*")
+  else return("")
+}
+
+plot_diversity <- function(obs_var, std_var, q_label, ylab) {
+  model_obs <- gls(as.formula(paste(obs_var, "~ Time.span")),
+                   data = data,
+                   correlation = corSpher(form = ~ Longitude + Latitude),
+                   method = "REML")
+  model_std <- gls(as.formula(paste(std_var, "~ Time.span")),
+                   data = data,
+                   correlation = corSpher(form = ~ Longitude + Latitude),
+                   method = "REML")
+
+  coef_obs <- summary(model_obs)$tTable["Time.span", "Value"]
+  se_obs   <- summary(model_obs)$tTable["Time.span", "Std.Error"]
+  p_obs    <- summary(model_obs)$tTable["Time.span", "p-value"]
+
+  coef_std <- summary(model_std)$tTable["Time.span", "Value"]
+  se_std   <- summary(model_std)$tTable["Time.span", "Std.Error"]
+  p_std    <- summary(model_std)$tTable["Time.span", "p-value"]
+
+  # R²
+  r2_obs <- 1 - sum(residuals(model_obs)^2) / sum((getResponse(model_obs) - mean(getResponse(model_obs)))^2)
+  r2_std <- 1 - sum(residuals(model_std)^2) / sum((getResponse(model_std) - mean(getResponse(model_std)))^2)
+
+  get_stars <- function(p) {
+    if (p < 0.001) return("***")
+    else if (p < 0.01) return("**")
+    else if (p < 0.05) return("*")
+    else return("")
+  }
+  stars_obs <- get_stars(p_obs)
+  stars_std <- get_stars(p_std)
+
+  label_obs <- paste0("R² = ", round(r2_obs, 3), stars_obs)
+  label_std <- paste0("R² = ", round(r2_std, 3), stars_std)
+
+  data$pred_obs <- predict(model_obs)
+  data$pred_std <- predict(model_std)
+
+  # plot
+  p <- ggplot(data, aes(x = Time.span)) +
+    geom_point(aes_string(y = obs_var), color = "orange", alpha = 0.5) +
+    geom_point(aes_string(y = std_var), color = "steelblue", alpha = 0.5) +
+    geom_line(aes(y = pred_obs), color = "orange", linewidth = 1) +
+    geom_line(aes(y = pred_std), color = "steelblue", linewidth = 1) +
+    annotate("text", x = max(data$Time.span) * 0.05, y = max(data[[obs_var]]) * 0.95,
+             label = label_obs, color = "orange", hjust = 0) +
+    annotate("text", x = max(data$Time.span) * 0.05, y = max(data[[obs_var]]) * 0.88,
+             label = label_std, color = "steelblue", hjust = 0) +
+    labs(title = ylab,
+         x = "Time span (Year)",
+         y = "Diversity value") +
+    theme_minimal() +
+    theme(panel.border = element_rect(color = "black", fill = NA, linewidth = 0.6))
+
+  result <- list(
+    plot = p,
+    stats = data.frame(
+      Index = q_label,
+      Obs_Estimate = coef_obs,
+      Obs_SE = se_obs,
+      Obs_p = p_obs,
+      Obs_R2 = r2_obs,
+      Obs_Signif = stars_obs,
+      Std_Estimate = coef_std,
+      Std_SE = se_std,
+      Std_p = p_std,
+      Std_R2 = r2_std,
+      Std_Signif = stars_std,
+      stringsAsFactors = FALSE
+    )
+  )
+
+  return(result)
+}
+
+results <- list()
+
+results[["TDq0"]] <- plot_diversity("Obs_TDq0", "TDq0", "TDq0", "Taxonomic diversity (q = 0)")
+results[["TDq1"]] <- plot_diversity("Obs_TDq1", "TDq1", "TDq1", "Taxonomic diversity (q = 1)")
+results[["TDq2"]] <- plot_diversity("Obs_TDq2", "TDq2", "TDq2", "Taxonomic diversity (q = 2)")
+results[["FDq0"]] <- plot_diversity("Obs_FDq0", "FDq0", "FDq0", "Functional diversity (q = 0)")
+results[["FDq1"]] <- plot_diversity("Obs_FDq1", "FDq1", "FDq1", "Functional diversity (q = 1)")
+results[["FDq2"]] <- plot_diversity("Obs_FDq2", "FDq2", "FDq2", "Functional diversity (q = 2)")
+
+# 拼图
+library(cowplot)
+plot_all <- plot_grid(
+  results[["TDq0"]]$plot, results[["TDq1"]]$plot, results[["TDq2"]]$plot,
+  results[["FDq0"]]$plot, results[["FDq1"]]$plot, results[["FDq2"]]$plot,
+  nrow = 2
+)
+
+show(plot_all)
+
+#ggsave("timespan.pdf", plot = plot_all, width = 9, height = 6)
+
+stats_all <- do.call(rbind, lapply(results, function(x) x$stats))
+
+```
+ 
+# Sampling effort Plot
+```{r}
+library(nlme)
+library(ggplot2)
+library(cowplot)
+library(nlme)
+library(ggplot2)
+library(cowplot)
+data <- read.csv("all_data.csv")
+data$log_Sam_eff <- log(data$Sam_eff)
+
+get_stars <- function(p) {
+  if (p < 0.001) return("***")
+  else if (p < 0.01) return("**")
+  else if (p < 0.05) return("*")
+  else return("")
+}
+
+plot_diversity <- function(obs_var, std_var, q_label, ylab) {
+
+  model_obs <- gls(as.formula(paste(obs_var, "~ log_Sam_eff")),
+                   data = data,
+                   correlation = corSpher(form = ~ Longitude + Latitude),
+                   method = "REML")
+
+  model_std <- gls(as.formula(paste(std_var, "~ log_Sam_eff")),
+                   data = data,
+                   correlation = corSpher(form = ~ Longitude + Latitude),
+                   method = "REML")
+
+  # 残差型 R²
+  r2_obs <- 1 - sum(residuals(model_obs)^2) / sum((getResponse(model_obs) - mean(getResponse(model_obs)))^2)
+  r2_std <- 1 - sum(residuals(model_std)^2) / sum((getResponse(model_std) - mean(getResponse(model_std)))^2)
+
+  p_obs <- summary(model_obs)$tTable["log_Sam_eff", "p-value"]
+  p_std <- summary(model_std)$tTable["log_Sam_eff", "p-value"]
+
+  stars_obs <- get_stars(p_obs)
+  stars_std <- get_stars(p_std)
+
+  label_obs <- paste0("R² = ", round(r2_obs, 3), stars_obs)
+  label_std <- paste0("R² = ", round(r2_std, 3), stars_std)
+
+  pred_data <- data.frame(log_Sam_eff = data$log_Sam_eff)
+pred_data$pred_obs <- predict(model_obs)
+pred_data$pred_std <- predict(model_std)
+pred_data <- pred_data[order(pred_data$log_Sam_eff), ]
+
+p <- ggplot(data, aes(x = log_Sam_eff)) +
+  geom_point(aes_string(y = obs_var), color = "orange", alpha = 0.5) +
+  geom_point(aes_string(y = std_var), color = "steelblue", alpha = 0.5) +
+  geom_line(data = pred_data, aes(x = log_Sam_eff, y = pred_obs), color = "orange", linewidth = 1) +
+  geom_line(data = pred_data, aes(x = log_Sam_eff, y = pred_std), color = "steelblue", linewidth = 1) +
+  annotate("text", x = max(data$log_Sam_eff) * 0.22, y = max(data[[obs_var]]) * 0.97,
+           label = label_obs, color = "orange", hjust = 0) +
+  annotate("text", x = max(data$log_Sam_eff) * 0.22, y = max(data[[obs_var]]) * 0.90,
+           label = label_std, color = "steelblue", hjust = 0) +
+  labs(title = ylab,
+       x = "Sampling effort",
+       y = "Diversity value") +
+  theme_minimal() +
+  theme(panel.border = element_rect(color = "black", fill = NA, linewidth = 0.6))+
+  xlim(min(data$log_Sam_eff), max(data$log_Sam_eff))
+  return(p)
+}
+
+p1 <- plot_diversity("Obs_TDq0", "TDq0", "q = 0", "Taxonomic diversity (q = 0)")
+p2 <- plot_diversity("Obs_TDq1", "TDq1", "q = 1", "Taxonomic diversity (q = 1)")
+p3 <- plot_diversity("Obs_TDq2", "TDq2", "q = 2", "Taxonomic diversity (q = 2)")
+p4 <- plot_diversity("Obs_FDq0", "FDq0", "q = 0", "Functional diversity (q = 0)")
+p5 <- plot_diversity("Obs_FDq1", "FDq1", "q = 1", "Functional diversity (q = 1)")
+p6 <- plot_diversity("Obs_FDq2", "FDq2", "q = 2", "Functional diversity (q = 2)")
+
+plot_all <- plot_grid(p1, p2, p3,
+                      p4, p5, p6,
+                      nrow = 2, labels = NULL)
+show(plot_all)
+ggsave("sampleffort.pdf", plot = plot_all,
+       width = 9, height = 6, units = "in")
+
+
+```
+
+
+# Sampling effort model summary
+```{r}
+# ----------------------------
+# A. Sampling Effort Analysis
+# ----------------------------
+
+library(nlme)
+library(ggplot2)
+library(cowplot)
+
+data <- read.csv("all_data.csv")
+data$log_Sam_eff <- log(data$Sam_eff)
+
+get_stars <- function(p) {
+  if (p < 0.001) return("***")
+  else if (p < 0.01) return("**")
+  else if (p < 0.05) return("*")
+  else return("")
+}
+
+plot_diversity_effort <- function(obs_var, std_var, q_label, ylab) {
+  model_obs <- gls(as.formula(paste(obs_var, "~ log_Sam_eff")),
+                   data = data,
+                   correlation = corSpher(form = ~ Longitude + Latitude),
+                   method = "REML")
+
+  model_std <- gls(as.formula(paste(std_var, "~ log_Sam_eff")),
+                   data = data,
+                   correlation = corSpher(form = ~ Longitude + Latitude),
+                   method = "REML")
+
+  # R²
+  r2_obs <- 1 - sum(residuals(model_obs)^2) / sum((getResponse(model_obs) - mean(getResponse(model_obs)))^2)
+  r2_std <- 1 - sum(residuals(model_std)^2) / sum((getResponse(model_std) - mean(getResponse(model_std)))^2)
+
+  stats <- data.frame(
+    Index = q_label,
+    Obs_Estimate = summary(model_obs)$tTable["log_Sam_eff", "Value"],
+    Obs_SE = summary(model_obs)$tTable["log_Sam_eff", "Std.Error"],
+    Obs_p = summary(model_obs)$tTable["log_Sam_eff", "p-value"],
+    Obs_R2 = r2_obs,
+    Obs_Signif = get_stars(summary(model_obs)$tTable["log_Sam_eff", "p-value"]),
+    Std_Estimate = summary(model_std)$tTable["log_Sam_eff", "Value"],
+    Std_SE = summary(model_std)$tTable["log_Sam_eff", "Std.Error"],
+    Std_p = summary(model_std)$tTable["log_Sam_eff", "p-value"],
+    Std_R2 = r2_std,
+    Std_Signif = get_stars(summary(model_std)$tTable["log_Sam_eff", "p-value"]),
+    stringsAsFactors = FALSE
+  )
+
+  return(stats)
+}
+
+effort_results <- do.call(rbind, list(
+  plot_diversity_effort("Obs_TDq0", "TDq0", "TDq0", ""),
+  plot_diversity_effort("Obs_TDq1", "TDq1", "TDq1", ""),
+  plot_diversity_effort("Obs_TDq2", "TDq2", "TDq2", ""),
+  plot_diversity_effort("Obs_FDq0", "FDq0", "FDq0", ""),
+  plot_diversity_effort("Obs_FDq1", "FDq1", "FDq1", ""),
+  plot_diversity_effort("Obs_FDq2", "FDq2", "FDq2", "")
+))
+
+#write.csv(effort_results, "simpleffort_summary.csv", row.names = FALSE)
+
+```
+
+# Time span model summary
+```{r}
+# ----------------------------
+# B. Time Span Analysis
+# ----------------------------
+
+data <- read.csv("all_data.csv")
+
+get_stars <- function(p) {
+  if (p < 0.001) return("***")
+  else if (p < 0.01) return("**")
+  else if (p < 0.05) return("*")
+  else return("")
+}
+
+plot_diversity_time <- function(obs_var, std_var, q_label, ylab) {
+  model_obs <- gls(as.formula(paste(obs_var, "~ Time.span")),
+                   data = data,
+                   correlation = corSpher(form = ~ Longitude + Latitude),
+                   method = "REML")
+
+  model_std <- gls(as.formula(paste(std_var, "~ Time.span")),
+                   data = data,
+                   correlation = corSpher(form = ~ Longitude + Latitude),
+                   method = "REML")
+
+  r2_obs <- 1 - sum(residuals(model_obs)^2) / sum((getResponse(model_obs) - mean(getResponse(model_obs)))^2)
+  r2_std <- 1 - sum(residuals(model_std)^2) / sum((getResponse(model_std) - mean(getResponse(model_std)))^2)
+
+  stats <- data.frame(
+    Index = q_label,
+    Obs_Estimate = summary(model_obs)$tTable["Time.span", "Value"],
+    Obs_SE = summary(model_obs)$tTable["Time.span", "Std.Error"],
+    Obs_p = summary(model_obs)$tTable["Time.span", "p-value"],
+    Obs_R2 = r2_obs,
+    Obs_Signif = get_stars(summary(model_obs)$tTable["Time.span", "p-value"]),
+    Std_Estimate = summary(model_std)$tTable["Time.span", "Value"],
+    Std_SE = summary(model_std)$tTable["Time.span", "Std.Error"],
+    Std_p = summary(model_std)$tTable["Time.span", "p-value"],
+    Std_R2 = r2_std,
+    Std_Signif = get_stars(summary(model_std)$tTable["Time.span", "p-value"]),
+    stringsAsFactors = FALSE
+  )
+
+  return(stats)
+}
+
+time_results <- do.call(rbind, list(
+  plot_diversity_time("Obs_TDq0", "TDq0", "TDq0", ""),
+  plot_diversity_time("Obs_TDq1", "TDq1", "TDq1", ""),
+  plot_diversity_time("Obs_TDq2", "TDq2", "TDq2", ""),
+  plot_diversity_time("Obs_FDq0", "FDq0", "FDq0", ""),
+  plot_diversity_time("Obs_FDq1", "FDq1", "FDq1", ""),
+  plot_diversity_time("Obs_FDq2", "FDq2", "FDq2", "")
+))
+
+write.csv(time_results, "timespan_summary.csv", row.names = FALSE)
+
+```
+
+
