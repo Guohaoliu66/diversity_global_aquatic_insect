@@ -1,0 +1,297 @@
+---
+  title: "SERerror model"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#1.0 Import data
+```{r}
+setwd("")
+library(sf)
+library(tidyverse)
+library(tidycensus)
+library(corrr)
+library(tmap)
+library(spdep)
+library(tigris)
+library(rmapshaper)
+library(flextable)
+library(car)
+library(spatialreg)
+library(stargazer)
+library(spatialreg)
+library(spdep)
+
+### there VPA data 
+All= read.csv("all_data.csv")
+data <- st_read("Global basin.shp")
+shp=data[which(data$HYBAS_ID %in% All$HYBAS_ID),]
+valid_shapefile <- st_make_valid(shp)
+sac_neighbors<-poly2nb(valid_shapefile, queen=T)
+
+summary(sac_neighbors)
+card(sac_neighbors)
+
+####https://gis.stackexchange.com/questions/413159/how-to-assign-a-neighbour-status-to-unlinked-polygons
+add_nb <- function(x){
+  
+  sac_neighbors <- poly2nb(x, queen = TRUE)
+  
+  count = card(sac_neighbors)
+  if(!any(count==0)){
+    return(sac_neighbors)
+  }
+  
+  ## get nearest neighbour index, use centroids:
+  nnbs = knearneigh(st_coordinates(st_centroid(x)))$nn
+  
+  no_edges_from = which(count==0)
+  for(i in no_edges_from){
+    sac_neighbors[[i]] = nnbs[i]
+  }
+  return(sac_neighbors)
+  
+}
+
+new_queen_nb <- add_nb(valid_shapefile)
+
+
+data=data.frame(All[,c(1:13,19,22,23,24,26:33,38,40,44)])
+colnames(data)
+
+```
+
+# Check
+```{r}
+
+vars_to_transform <- c("GDP", "HDI", "HFP", "HMG", "Pop_d", 
+                       "Bio1", "Bio4", "Bio12", "Bio15", 
+                       "Elev_range", "Area", "For_ext", "Cro_ext",
+                       "Sam_eff", "Time.span")
+
+for (var in vars_to_transform) {
+  x <- data[[var]]
+  
+  if (any(x <= 0, na.rm = TRUE)) {
+    shift <- abs(min(x, na.rm = TRUE)) + 1
+    x <- x + shift
+  }
+  
+  data[[var]] <- as.numeric(scale(log(x)))
+}
+
+head(data)
+
+vars <- c("GDP", "HDI", "HFP", "HMG", "Pop_d")
+sub_data <- data[vars]
+
+cor_matrix <- cor(sub_data, use = "complete.obs") 
+
+print(round(cor_matrix, 3))
+
+vif_model <- lm(TDq0 ~ GDP + HDI + HFP + HMG + Pop_d, data = data)
+
+vif_values <- vif(vif_model)
+print(vif_values)
+```
+
+# SAR main model
+```{r}
+response_vars <- c("TDq0", "TDq1", "TDq2", "FDq0", "FDq1", "FDq2")
+all_vars <- c("Bio1", "Bio4", "Bio12", "Bio15", "Elev_range",
+              "Area", "Cro_ext", "For_ext", "HFP",  "Sam_eff", "Time.span")
+
+morI <- merge(shp, data, by.x = "HYBAS_ID", by.y = "HYBAS_ID", all.x = FALSE)
+W_cont_el_mat2 <- nb2listw(new_queen_nb, style = "W", zero.policy = TRUE)
+morI_df <- as.data.frame(morI)
+data <- merge(data.frame(HYBAS_ID = morI_df$HYBAS_ID), data, by = "HYBAS_ID", sort = FALSE)
+
+model_stats_all <- data.frame()
+coef_table_all <- data.frame()
+
+for (res_var in response_vars) {
+  formula_full <- as.formula(paste(res_var, "~", paste(all_vars, collapse = " + ")))
+  null_formula <- as.formula(paste(res_var, "~ 1"))
+
+  mod_null <- errorsarlm(null_formula, data = data, listw = W_cont_el_mat2, zero.policy = TRUE)
+  mod_full <- errorsarlm(formula_full, data = data, listw = W_cont_el_mat2, zero.policy = TRUE)
+
+  opt <- summary(mod_full, Nagelkerke = TRUE)
+  opt_r2 <- opt$NK
+  opt_aic <- AIC(mod_full)
+  null_aic <- AIC(mod_null)
+  res <- mod_full$residuals
+  names(res) <- data$HYBAS_ID
+  I <- moran.test(res, listw = W_cont_el_mat2, zero.policy = TRUE)
+
+  model_stats_all <- rbind(model_stats_all, data.frame(
+    Response = res_var,
+    R2_Nagelkerke = round(opt_r2, 3),
+    AIC = round(opt_aic, 2),
+    AIC_null = round(null_aic, 2),
+    Moran_I = round(I$estimate[1], 4),
+    Moran_p = round(I$p.value, 4)
+  ))
+
+  coef_df <- as.data.frame(opt$Coef)
+  coef_df$Variable <- rownames(coef_df)
+  coef_df <- coef_df[coef_df$Variable != "(Intercept)", ]
+  coef_df$Response <- res_var
+
+  coef_table_all <- rbind(coef_table_all, coef_df[, c("Response", "Variable", "Estimate", "Std. Error", "Pr(>|z|)")])
+}
+
+colnames(coef_table_all) <- c("Response", "Variable", "Estimate", "Std.Error", "p.value")
+
+#write.csv(model_stats_all, "SAR_model_stats_all.csv", row.names = FALSE)
+#write.csv(coef_table_all, "SAR_model_coefficients_all.csv", row.names = FALSE)
+```
+
+
+# Plot TD
+```{r}
+
+#results=read.csv(file = "SAR_model_coefficients_all.csv")
+results=coef_table_all
+results$Variable[results$Variable == "Bio1"] <- "Temperature"
+results$Variable[results$Variable == "Bio4"] <- "Tem_seas"
+results$Variable[results$Variable == "Bio12"] <- "Precipitation"
+results$Variable[results$Variable == "Bio15"] <- "Pre_seas"
+results$Variable[results$Variable == "Elev_range"] <- "Ele_range"
+results$Variable[results$Variable == "Time.span"] <- "Time span"
+
+td_data <- subset(results, Response %in% c("TDq0", "TDq1", "TDq2"))
+td_data$Response <- factor(td_data$Response, levels = c("TDq2", "TDq1", "TDq0"))
+td_data <- td_data %>%
+  mutate(Significance = case_when(
+    p.value <= 0.001 ~ "***",
+    p.value <= 0.01  ~ "**",
+    p.value <= 0.05  ~ "*",
+    TRUE             ~ ""
+  ))
+
+x_limits <- max(abs(td_data$Estimate + td_data$Std.Error)) * 1.1  
+
+custom_order <- c(
+   "Time span", "Sam_eff", 
+   "HFP",
+   "For_ext","Cro_ext","Area","Ele_range",
+   "Pre_seas","Precipitation","Tem_seas", "Temperature"
+)
+
+td_data$Variable <- factor(td_data$Variable, levels = custom_order)
+
+  ggplot(td_data) +
+  geom_segment(aes(x = Estimate - Std.Error, 
+                   xend = Estimate + Std.Error, 
+                   y = Variable, 
+                   yend = Variable, 
+                   color = Response),
+               position = position_nudge(y = as.numeric(factor(td_data$Response)) * 0.2 - 0.4), 
+               size = 1) +
+  geom_point(aes(x = Estimate, y = Variable, color = Response), 
+             position = position_nudge(y = as.numeric(factor(td_data$Response)) * 0.2 - 0.4), 
+             size = 3) +
+  geom_text(aes(x = Estimate + Std.Error + 0.01, 
+                y = Variable, 
+                label = Significance, 
+                color = Response), 
+            position = position_nudge(y = as.numeric(factor(td_data$Response)) * 0.2 - 0.4), 
+            hjust = 0, 
+            size = 4) +  
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.8) +
+  scale_color_manual(values = c("TDq0" = "#B395BD", "TDq1" = "#7DAEE0", "TDq2" = "#D87659")) +
+  scale_x_continuous(limits = c(-x_limits, x_limits)) +
+  labs(x = "Standardized coefficient",
+       y = "Environmental Variable",
+       color = "Diversity Index") +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 12),
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray90"),  
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    panel.border = element_rect(color = "black", fill = NA, size = 1) 
+  )
+
+```
+
+# Plot FD
+```{r}
+
+#results=read.csv(file = "SAR_model_coefficients_all.csv")
+
+results=coef_table_all
+results$Variable[results$Variable == "Bio1"] <- "Temperature"
+results$Variable[results$Variable == "Bio4"] <- "Tem_seas"
+results$Variable[results$Variable == "Bio12"] <- "Precipitation"
+results$Variable[results$Variable == "Bio15"] <- "Pre_seas"
+results$Variable[results$Variable == "Elev_range"] <- "Ele_range"
+results$Variable[results$Variable == "Time.span"] <- "Time span"
+td_data <- subset(results, Response %in% c("FDq0", "FDq1", "FDq2"))
+
+td_data$Response <- factor(td_data$Response, levels = c("FDq2", "FDq1", "FDq0"))
+td_data <- td_data %>%
+  mutate(Significance = case_when(
+    p.value <= 0.001 ~ "***",
+    p.value <= 0.01  ~ "**",
+    p.value <= 0.05  ~ "*",
+    TRUE             ~ ""
+  ))
+
+x_limits <- max(abs(td_data$Estimate + td_data$Std.Error)) * 1.1  
+custom_order <- c(
+   "Time span", "Sam_eff", 
+    "HFP",
+   "For_ext","Cro_ext","Area","Ele_range",
+   "Pre_seas","Precipitation","Tem_seas", "Temperature"
+)
+
+td_data$Variable <- factor(td_data$Variable, levels = custom_order)
+
+# 绘图
+  ggplot(td_data) +
+  geom_segment(aes(x = Estimate - Std.Error, 
+                   xend = Estimate + Std.Error, 
+                   y = Variable, 
+                   yend = Variable, 
+                   color = Response),
+               position = position_nudge(y = as.numeric(factor(td_data$Response)) * 0.2 - 0.4), 
+               size = 1) +
+  # 绘制点
+  geom_point(aes(x = Estimate, y = Variable, color = Response), 
+             position = position_nudge(y = as.numeric(factor(td_data$Response)) * 0.2 - 0.4), 
+             size = 3) +
+  geom_text(aes(x = Estimate + Std.Error + 0.01, 
+                y = Variable, 
+                label = Significance, 
+                color = Response), 
+            position = position_nudge(y = as.numeric(factor(td_data$Response)) * 0.2 - 0.4), 
+            hjust = 0, 
+            size = 4) +  
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", size = 0.8) +
+  scale_color_manual(values = c("FDq0" = "#B395BD", "FDq1" = "#7DAEE0", "FDq2" = "#D87659")) +
+  scale_x_continuous(limits = c(-1.5, 1.5)) +
+  labs(x = "Standardized coefficient",
+       y = "Environmental Variable",
+       color = "Diversity Index") +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 12),
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray90"),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    panel.border = element_rect(color = "black", fill = NA, size = 1)  
+  )
+
+
+```
+
+
