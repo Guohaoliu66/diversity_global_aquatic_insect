@@ -23,10 +23,6 @@ Global basin boundary data extracted from the HYdroBASIN database of four levels
 Global_EPTO_Database.csv extracted from the EPTO database: https://glowabio.org/project/epto_database/.  
 Site data: site001-site007 were extracted from the Global_EPTO_Database.csv and the coordinates were connected to the unique HYBAS_ID using QGis software
 
-## Expected output
-We can obtain a global pattern of geographic distribution of aquatic insect diversity (including basin and latitude) and its drives.  
-By running these R codes, we can repeat almost all of the results from the study. Note, however: due to the uncontrolled standard error when using the iNEXT.3D package for diversity calculations, it is almost impossible to reproduce exactly the same results (the ratio of observed to normalized diversity), even though we set the parameter nboot = 50 for more reliable results.
-
 
 ## Data and code for the paper:
 Liu, G., Lin, Z., Soininen, J., Dalu, T., Juvigny-Khenafou, N.P.D., Khan, S., Mu, H., Oduro, C., Qi, X., Qu, X., Riis, T., Wijewardenec, L., Zhang, M., Li, J., Wu, Y. & Wu, N. 2025. Standardized diversity estimation uncovers global distribution patterns and drivers of stream insects. npj Biodiversity, in press.
